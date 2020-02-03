@@ -48,9 +48,9 @@ class MDRNNTests(TestCase):
 
     def test_feeding_layer_created_with_default_initializer(self):
         mdrnn = MDRNN(input_dim=1, units=2, ndims=1)
-        x = np.zeros((1, 1))
+        x = np.zeros((1, 1)) * 0.5
         a = mdrnn(x)
-        self.assertEqual(np.zeros((2, 1)).tolist(), a.numpy().tolist())
+        np.testing.assert_almost_equal(np.zeros((1, 2)), a.numpy(), 4)
 
     def test_for_one_step_sequence(self):
         kernel_initializer = initializers.Zeros()
@@ -63,13 +63,36 @@ class MDRNNTests(TestCase):
         x = np.zeros((1, 1))
         a = mdrnn(x)
 
-        self.assertEqual(np.array([[5], [5]]).tolist(), a.numpy().tolist())
+        np.testing.assert_almost_equal(np.array([[0.9999, 0.9999]]), a.numpy(), 4)
+
+    def test_for_two_step_sequence(self):
+        kernel_initializer = initializers.Zeros()
+        recurrent_initializer = kernel_initializer
 
         mdrnn = MDRNN(input_dim=1, units=2, ndims=1,
                       kernel_initializer=kernel_initializer,
                       recurrent_initializer=recurrent_initializer,
-                      bias_initializer=initializers.Constant(15))
-        x = np.zeros((1, 1))
+                      bias_initializer=initializers.Constant(5))
+        x = np.zeros((2, 1))
         a = mdrnn(x)
 
-        self.assertEqual(np.array([[15], [15]]).tolist(), a.numpy().tolist())
+        np.testing.assert_almost_equal(np.array([[0.9999, 0.9999], [0.9999, 0.9999]]), a.numpy(), 4)
+
+    def test_with_identity_matrices(self):
+        kernel_initializer = initializers.identity()
+        recurrent_initializer = kernel_initializer
+        bias_initializer = initializers.Zeros()
+
+        mdrnn = MDRNN(input_dim=3, units=3, ndims=1,
+                      kernel_initializer=kernel_initializer,
+                      recurrent_initializer=recurrent_initializer,
+                      bias_initializer=bias_initializer,
+                      activation=None)
+
+        x1 = np.array([1, 2, 4])
+        x2 = np.array([9, 8, 6])
+        x = np.array([x1, x2])
+        a = mdrnn(x)
+
+        expected_result = np.array([x1, x1 + x2])
+        np.testing.assert_almost_equal(expected_result, a.numpy(), 4)
