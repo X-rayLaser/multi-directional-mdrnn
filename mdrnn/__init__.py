@@ -32,9 +32,9 @@ class MDRNN(tf.keras.layers.Layer):
         default_initializer = tf.keras.initializers.he_normal()
 
         if kernel_initializer is None:
-            self.wax = default_initializer((units, input_dim), dtype=tf.float32)
+            self.wax = default_initializer((input_dim, units), dtype=tf.float32)
         else:
-            self.wax = kernel_initializer((units, input_dim), dtype=tf.float32)
+            self.wax = kernel_initializer((input_dim, units), dtype=tf.float32)
 
         if recurrent_initializer is None:
             self.waa = default_initializer((units, units), dtype=tf.float32)
@@ -42,37 +42,22 @@ class MDRNN(tf.keras.layers.Layer):
             self.waa = recurrent_initializer((units, units), dtype=tf.float32)
 
         if bias_initializer is None:
-            self.ba = default_initializer((units, 1), dtype=tf.float32)
+            self.ba = default_initializer((1, units), dtype=tf.float32)
         else:
-            self.ba = bias_initializer((units, 1), dtype=tf.float32)
+            self.ba = bias_initializer((1, units), dtype=tf.float32)
 
     def call(self, inp, initial_state=None):
         self._validate_input(inp)
 
+        if not isinstance(inp, tf.Tensor):
+            inp = tf.constant(inp, dtype=tf.float32)
+
         if initial_state is None:
-            initial_state = np.zeros((self.units, 1), dtype=np.float)
-        a = tf.constant(initial_state, dtype=tf.float32)
+            initial_state = np.zeros((1, self.units), dtype=np.float)
+        else:
+            initial_state = tf.reshape(initial_state, (-1, self.units))
 
-        Tx = inp.shape[1]
-
-        outputs = np.zeros((1, Tx, self.units))
-
-        if inp.shape[0] is not None and inp.shape[0] > 1:
-            return np.zeros((inp.shape[0], Tx, self.units))
-
-        inp = tf.constant(inp, dtype=tf.float32)
-        for i in range(Tx):
-            seq_item = tf.reshape(inp[0][i], (-1, 1))
-            x = tf.constant(seq_item, dtype=tf.float32)
-
-            z = tf.add(
-                tf.add(
-                    tf.matmul(self.waa, a),
-                    tf.matmul(self.wax, x)),
-                self.ba)
-
-            a = self.activation(z)
-            outputs[0, i] = a.numpy().ravel()
+        outputs = self._make_graph(inp, initial_state)
 
         return self._prepare_result(outputs)
 
@@ -82,10 +67,25 @@ class MDRNN(tf.keras.layers.Layer):
                 or inp.shape[-1] != self.input_dim):
             raise InputRankMismatchError(inp.shape)
 
+    def _make_graph(self, inp, initial_state):
+        a = tf.constant(initial_state, dtype=tf.float32)
+
+        Tx = inp.shape[1]
+
+        outputs = []
+
+        for i in range(Tx):
+            z = tf.add(tf.matmul(a, self.waa), tf.matmul(inp[:, i], self.wax))
+            z = tf.add(z, self.ba)
+            a = self.activation(z)
+            outputs.append(a)
+
+        return tf.stack(outputs, axis=1)
+
     def _prepare_result(self, outputs):
-        last_state = tf.constant(outputs[:, -1])
+        last_state = outputs[:, -1]
         if self.return_sequences:
-            returned_outputs = tf.constant(outputs)
+            returned_outputs = outputs
         else:
             returned_outputs = last_state
 
