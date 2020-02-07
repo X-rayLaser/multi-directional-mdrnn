@@ -14,19 +14,25 @@ class MDRNN(tf.keras.layers.Layer):
 
     def __init__(self, input_dim, units, ndims, kernel_initializer=None,
                  recurrent_initializer=None, bias_initializer=None, activation='tanh',
-                 return_sequences=False, return_state=False, **kwargs):
+                 return_sequences=False, return_state=False, direction=None, **kwargs):
         super().__init__(**kwargs)
         if (input_dim <= 0 or input_dim >= self.MAX_INPUT_DIM
                 or units <= 0 or units >= self.MAX_UNITS
                 or ndims <= 0 or ndims >= self.MAX_NDIMS):
             raise InvalidParamsError()
 
+        if direction is None:
+            args = [1] * ndims
+            direction = Direction(*args)
+
+        self._validate_direction(direction, ndims)
+
         self.ndims = ndims
         self.input_dim = input_dim
         self.units = units
         self.return_sequences = return_sequences
         self.return_state = return_state
-
+        self.direction = direction
         self.activation = tf.keras.activations.get(activation)
 
         default_initializer = tf.keras.initializers.he_normal()
@@ -46,7 +52,14 @@ class MDRNN(tf.keras.layers.Layer):
         else:
             self.ba = bias_initializer((1, units), dtype=tf.float32)
 
-    def call(self, inp, initial_state=None):
+    def _validate_direction(self, direction, ndims):
+        if not isinstance(direction, Direction):
+            raise InvalidParamsError()
+
+        if direction.dimensions != ndims:
+            raise InvalidParamsError(direction.dimensions)
+
+    def call(self, inp, initial_state=None, **kwargs):
         self._validate_input(inp)
 
         if not isinstance(inp, tf.Tensor):
@@ -70,13 +83,17 @@ class MDRNN(tf.keras.layers.Layer):
 
         Tx = inp.shape[1]
 
-        outputs = []
+        outputs = [0] * Tx
 
-        for i in range(Tx):
+        if self.direction._dirs[0] > 0:
+            indices = range(Tx)
+        else:
+            indices = range(Tx - 1, -1, -1)
+        for i in indices:
             z = tf.add(tf.matmul(a, self.waa), tf.matmul(inp[:, i], self.wax))
             z = tf.add(z, self.ba)
             a = self.activation(z)
-            outputs.append(a)
+            outputs[i] = a
 
         return tf.stack(outputs, axis=1)
 
@@ -90,6 +107,15 @@ class MDRNN(tf.keras.layers.Layer):
         if self.return_state:
             return returned_outputs, last_state
         return returned_outputs
+
+
+class Direction:
+    def __init__(self, *directions):
+        self._dirs = list(directions)
+
+    @property
+    def dimensions(self):
+        return len(self._dirs)
 
 
 class InvalidParamsError(Exception):

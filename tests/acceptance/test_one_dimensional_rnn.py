@@ -116,9 +116,9 @@ class RnnWithoutReturningSequencesTests(Rnn1DTestCase):
         self.assertIsNotNone(loss)
 
 
-#class RNNSequenceTests(RnnWithoutReturningSequencesTests):
-#    def should_return_sequences(self):
-#        return True
+class RNNSequenceTests(RnnWithoutReturningSequencesTests):
+    def should_return_sequences(self):
+        return True
 
 
 class FunctionalRNNTests(RnnWithoutReturningSequencesTests):
