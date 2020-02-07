@@ -2,6 +2,7 @@ from unittest import TestCase
 from mdrnn import MDRNN, InvalidParamsError, InputRankMismatchError
 import numpy as np
 from tensorflow.keras import initializers
+import tensorflow as tf
 
 
 class MDRNNInitializationTests(TestCase):
@@ -128,9 +129,8 @@ class OneStepTests(TestCase):
                       bias_initializer=initializers.Zeros(),
                       activation=None)
 
-        initial_state = np.array([1, 2, 3]).reshape(-1, 1)
+        initial_state = np.array([1, 2, 3]).reshape(1, -1)
 
-        import tensorflow as tf
         a = mdrnn.call(np.zeros((1, 1, 3), dtype=np.float),
                        initial_state=tf.constant(initial_state, dtype=tf.float32))
 
@@ -150,27 +150,20 @@ class OneStepTests(TestCase):
         expected_result = np.array([[2, 2, 2]])
         np.testing.assert_almost_equal(expected_result, a.numpy(), 4)
 
-    def test_1d_rnn_produces_correct_output_for_the_first_step(self):
-        kernel_initializer = initializers.identity()
-        recurrent_initializer = kernel_initializer
-
-        bias = 3
-        bias_initializer = initializers.Constant(bias)
+    def test_activation_is_working(self):
+        initializer = initializers.zeros()
 
         mdrnn = MDRNN(input_dim=3, units=3, ndims=1,
-                      kernel_initializer=kernel_initializer,
-                      recurrent_initializer=recurrent_initializer,
-                      bias_initializer=bias_initializer,
-                      activation=None,
-                      return_sequences=True)
+                      kernel_initializer=initializer,
+                      recurrent_initializer=initializer,
+                      bias_initializer=initializer,
+                      activation='sigmoid')
 
-        x1 = np.array([1, 2, 4])
-        x2 = np.array([9, 8, 6])
-        x = np.array([x1, x2])
-        a = mdrnn.call(x.reshape(1, 2, -1))
+        x = np.zeros((1, 1, 3))
+        a = mdrnn.call(x)
 
-        expected_result = np.array([[x1 + bias, x1 + x2 + 2 * bias]])
-        np.testing.assert_almost_equal(expected_result, a.numpy(), 4)
+        expected_result = np.ones((1, 3)) * 0.5
+        np.testing.assert_almost_equal(expected_result, a.numpy(), 8)
 
     def test_1d_rnn_with_tensor(self):
         mdrnn = MDRNN(input_dim=3, units=3, ndims=1,
@@ -179,9 +172,7 @@ class OneStepTests(TestCase):
                       bias_initializer=initializers.Constant(2),
                       activation=None)
 
-        import tensorflow as tf
         x = tf.zeros((1, 1, 3))
-        #x = np.zeros((1, 1, 3))
         a = mdrnn.call(x)
 
         expected_result = np.array([[2, 2, 2]])
@@ -226,6 +217,28 @@ class OneDimensionalRNNTests(TestCase):
 
         expected_result = np.ones((1, 3, 2)) * 0.9999
         np.testing.assert_almost_equal(expected_result, a.numpy(), 4)
+
+    def test_1d_rnn_produces_correct_output_for_2_steps(self):
+        kernel_initializer = initializers.identity()
+        recurrent_initializer = kernel_initializer
+
+        bias = 3
+        bias_initializer = initializers.Constant(bias)
+
+        mdrnn = MDRNN(input_dim=3, units=3, ndims=1,
+                      kernel_initializer=kernel_initializer,
+                      recurrent_initializer=recurrent_initializer,
+                      bias_initializer=bias_initializer,
+                      activation=None,
+                      return_sequences=True)
+
+        x1 = np.array([1, 2, 4])
+        x2 = np.array([9, 8, 6])
+        x = np.array([x1, x2])
+        a = mdrnn.call(x.reshape(1, 2, -1))
+
+        expected_result = np.array([[x1 + bias, x1 + x2 + 2 * bias]])
+        np.testing.assert_almost_equal(expected_result, a.numpy(), 8)
 
 
 

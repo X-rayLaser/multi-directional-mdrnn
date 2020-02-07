@@ -54,8 +54,6 @@ class MDRNN(tf.keras.layers.Layer):
 
         if initial_state is None:
             initial_state = np.zeros((1, self.units), dtype=np.float)
-        else:
-            initial_state = tf.reshape(initial_state, (-1, self.units))
 
         outputs = self._make_graph(inp, initial_state)
 
