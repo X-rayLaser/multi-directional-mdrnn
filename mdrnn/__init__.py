@@ -12,10 +12,16 @@ class MDRNN(tf.keras.layers.Layer):
     MAX_UNITS = MAX_INPUT_DIM
     MAX_NDIMS = 10**3
 
-    def __init__(self, input_dim, units, ndims, kernel_initializer=None,
+    def __init__(self, units, input_shape, kernel_initializer=None,
                  recurrent_initializer=None, bias_initializer=None, activation='tanh',
                  return_sequences=False, return_state=False, direction=None, **kwargs):
+        if input_shape:
+            kwargs.update(dict(input_shape=input_shape))
         super().__init__(**kwargs)
+
+        input_dim = input_shape[-1]
+        ndims = len(input_shape[:-1])
+
         if (input_dim <= 0 or input_dim >= self.MAX_INPUT_DIM
                 or units <= 0 or units >= self.MAX_UNITS
                 or ndims <= 0 or ndims >= self.MAX_NDIMS):

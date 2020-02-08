@@ -24,7 +24,7 @@ class Rnn1DTestCase(TestCase):
     def create_model(self, input_dim, units, seq_len, return_sequences,
                      output_units=1, output_activation=None):
         model = tf.keras.Sequential()
-        model.add(MDRNN(input_dim=input_dim, units=units, ndims=1,
+        model.add(MDRNN(units=units,
                         input_shape=[seq_len, input_dim],
                         return_sequences=return_sequences))
 
@@ -129,7 +129,7 @@ class FunctionalRNNTests(RnnWithoutReturningSequencesTests):
 
         x = inp
 
-        mdrnn = MDRNN(input_dim=input_dim, units=units, ndims=1,
+        mdrnn = MDRNN(units=units, input_shape=(None, input_dim),
                       return_sequences=return_sequences)
 
         densor = tf.keras.layers.Dense(units=output_units, activation=output_activation)

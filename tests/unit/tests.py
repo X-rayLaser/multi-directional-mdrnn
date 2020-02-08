@@ -11,19 +11,19 @@ class MDRNNInitializationTests(TestCase):
             self.assertRaises(InvalidParamsError, lambda: MDRNN(**kwargs))
 
     def test_with_invalid_input_dim(self):
-        self.assert_invalid_instances(dict(input_dim=-1, units=10, ndims=2),
-                                      dict(input_dim=0, units=10, ndims=2),
-                                      dict(input_dim=10**10, units=10, ndims=2))
+        self.assert_invalid_instances(dict(units=10, input_shape=(3, 5, -1)),
+                                      dict(units=10, input_shape=(3, 5, 0)),
+                                      dict(units=10, input_shape=(3, 5, 10**10)))
 
     def test_with_invalid_units(self):
-        self.assert_invalid_instances(dict(input_dim=1, units=-1, ndims=2),
-                                      dict(input_dim=1, units=0, ndims=2),
-                                      dict(input_dim=1, units=10**10, ndims=2))
+        self.assert_invalid_instances(dict(units=-1, input_shape=(3, 5, 1)),
+                                      dict(units=0, input_shape=(3, 5, 1)),
+                                      dict(units=10**10, input_shape=(3, 5, 1)))
 
     def test_with_invalid_number_of_dimensions(self):
-        self.assert_invalid_instances(dict(input_dim=1, units=1, ndims=-1),
-                                      dict(input_dim=1, units=1, ndims=0),
-                                      dict(input_dim=1, units=1, ndims=10**3))
+        args = tuple([1] * 10**4)
+        self.assert_invalid_instances(dict(units=1, input_shape=(1,)),
+                                      dict(units=1, input_shape=args))
 
 
 class MDRNNInputValidationTests(TestCase):
@@ -38,25 +38,25 @@ class MDRNNInputValidationTests(TestCase):
             self.assertFalse(True, msg='Function raised exception {}'.format(repr(e)))
 
     def test_input_array_rank_should_be_2_units_larger_than_ndims(self):
-        mdrnn = MDRNN(input_dim=7, units=1, ndims=1)
+        mdrnn = MDRNN(units=1, input_shape=(None, 7))
 
         inputs = [np.zeros((2,)), np.zeros((2, 1)), np.zeros((1, 3, 2))]
         self.assert_invalid_input_ranks(mdrnn, *inputs)
 
     def test_input_array_last_dimension_should_match_input_dim(self):
-        mdrnn = MDRNN(input_dim=3, units=1, ndims=1)
+        mdrnn = MDRNN(units=1, input_shape=(None, 3))
 
-        inputs = [np.zeros((1, 2, 2, 1))]
+        inputs = [np.zeros((1, 2, 1))]
         self.assert_invalid_input_ranks(mdrnn, *inputs)
 
     def test_input_shape_should_contain_no_zeros(self):
-        mdrnn = MDRNN(input_dim=2, units=1, ndims=2)
+        mdrnn = MDRNN(units=1, input_shape=(None, 1, 2))
 
         inputs = [np.zeros((0, 2, 3)), np.zeros((2, 0, 3)), np.zeros((0, 0, 3))]
         self.assert_invalid_input_ranks(mdrnn, *inputs)
 
     def test_with_correct_input(self):
-        mdrnn = MDRNN(input_dim=7, units=1, ndims=1)
+        mdrnn = MDRNN(units=1, input_shape=(None, 7))
 
         self.assert_not_raises(InputRankMismatchError,
                                lambda: mdrnn.call(np.zeros((5, 3, 7))))
@@ -69,7 +69,7 @@ class MDRNNOutputShapeTests(TestCase):
         self.expected_state_shape = (1, 3)
 
     def create_default_mdrnn(self, **kwargs):
-        return MDRNN(input_dim=1, units=3, ndims=1, **kwargs)
+        return MDRNN(units=3, input_shape=(None, 1), **kwargs)
 
     def test_feeding_1_dimensional_rnn_returns_sequences(self):
         mdrnn = self.create_default_mdrnn(return_sequences=True)
@@ -113,7 +113,7 @@ class OneStepTests(TestCase):
         self.x = np.zeros((1, 1, 3), dtype=np.float)
 
     def create_default_mdrnn(self, **kwargs):
-        return MDRNN(input_dim=3, units=3, ndims=1, **kwargs)
+        return MDRNN(units=3, input_shape=(None, 3), **kwargs)
 
     def assert_model_predicts_correct_result(self, expected, mdrnn, inputs, **kwargs):
         a = mdrnn.call(inputs, **kwargs)
@@ -193,7 +193,7 @@ class OneStepTests(TestCase):
 
 class TwoStepRNNTests(TestCase):
     def test_feeding_layer_created_with_default_initializer(self):
-        mdrnn = MDRNN(input_dim=1, units=2, ndims=1)
+        mdrnn = MDRNN(units=2, input_shape=(None, 1))
         x = np.zeros((1, 1, 1)) * 0.5
         mdrnn.call(x)
 
@@ -201,7 +201,7 @@ class TwoStepRNNTests(TestCase):
         kernel_initializer = initializers.Zeros()
         recurrent_initializer = kernel_initializer
 
-        mdrnn = MDRNN(input_dim=1, units=2, ndims=1,
+        mdrnn = MDRNN(units=2, input_shape=(None, 1),
                       kernel_initializer=kernel_initializer,
                       recurrent_initializer=recurrent_initializer,
                       bias_initializer=initializers.Constant(5),
@@ -219,7 +219,7 @@ class TwoStepRNNTests(TestCase):
         bias = 3
         bias_initializer = initializers.Constant(bias)
 
-        mdrnn = MDRNN(input_dim=3, units=3, ndims=1,
+        mdrnn = MDRNN(units=3, input_shape=(None, 3),
                       kernel_initializer=kernel_initializer,
                       recurrent_initializer=recurrent_initializer,
                       bias_initializer=bias_initializer,
@@ -247,7 +247,7 @@ class ForwardBackwardProcessingTests(TestCase):
         recurrent_initializer = initializers.constant(2)
         bias_initializer = initializers.zeros()
 
-        return MDRNN(input_dim=1, units=1, ndims=1,
+        return MDRNN(units=1, input_shape=(None, 1),
                      kernel_initializer=kernel_initializer,
                      recurrent_initializer=recurrent_initializer,
                      bias_initializer=bias_initializer,
@@ -281,8 +281,9 @@ class DirectionValidationTestCase(TestCase):
         self.ndims = 1
 
     def create_mdrnn(self, direction):
-        return MDRNN(input_dim=self.input_dim, units=self.units,
-                     ndims=self.ndims, direction=direction)
+        input_dimensions = [None] * self.ndims
+        shape = tuple(input_dimensions + [self.input_dim])
+        return MDRNN(units=self.units, input_shape=shape, direction=direction)
 
     def assert_invalid_direction(self, direction):
         self.assertRaises(
@@ -323,6 +324,11 @@ class DirectionValidationInMultidimensionalRNN(DirectionValidationTestCase):
 
     def test_with_valid_direction(self):
         self.assert_valid_direction(Direction(-1, 1))
+
+
+class MDRNNReproductionTests(TestCase):
+    def test(self):
+        pass
 
 
 # todo 1 dimensional rnn, specify iteration direction
