@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import itertools
 
 
 class ManyToOneRNN:
@@ -98,30 +99,42 @@ class MDRNN(tf.keras.layers.Layer):
             raise InputRankMismatchError(inp.shape)
 
     def _make_graph(self, inp, initial_state):
-        original_shape = inp.shape
-        if self.ndims == 2 and inp.shape[1:-1] == (1, 1):
-            inp = tf.reshape(inp, shape=[-1, 1, inp.shape[-1]])
-
         a = tf.constant(initial_state, dtype=tf.float32)
 
-        Tx = inp.shape[1]
+        dim_lengths = inp.shape[1:-1]
 
-        outputs = [0] * Tx
+        outputs = np.zeros(inp.shape[1:-1], dtype=np.int).tolist()
 
-        if self.direction._dirs[0] > 0:
-            indices = range(Tx)
-        else:
-            indices = range(Tx - 1, -1, -1)
-        for i in indices:
-            z = tf.add(tf.matmul(a, self.waa), tf.matmul(inp[:, i], self.wax))
+        positions = self.direction.iterate_positions(dim_lengths)
+
+        for position in positions:
+            batch = self._get_batch(inp, position)
+            z = tf.add(tf.matmul(a, self.waa), tf.matmul(batch, self.wax))
             z = tf.add(z, self.ba)
             a = self.activation(z)
-            outputs[i] = a
 
-        res = tf.stack(outputs, axis=1)
-        if self.ndims == 2 and original_shape[1:-1] == (1, 1):
-            res = tf.reshape(res, shape=[-1, 1, 1, self.units])
+            self._add_result(outputs, position, a)
+
+        res = tf.stack(outputs, axis=self.ndims)
         return res
+
+    def _get_batch(self, tensor, position):
+        i = position[0]
+        t = tensor[:, i]
+
+        for index in position[1:]:
+            t = t[:, index]
+        return t
+
+    def _add_result(self, outputs, position, a):
+        if len(position) > 1:
+            sub_list = outputs[position[0]]
+            for index in position[1:-1]:
+                sub_list = sub_list[index]
+
+            sub_list[position[-1]] = a
+        else:
+            outputs[position[0]] = a
 
     def _prepare_result(self, outputs):
         last_state = outputs[:, -1]
@@ -158,6 +171,20 @@ class Direction:
     @property
     def dimensions(self):
         return len(self._dirs)
+
+    def iterate_positions(self, dim_lengths):
+        axes = []
+
+        for i, dim_len in enumerate(dim_lengths):
+            step_size = self._dirs[i]
+            if step_size > 0:
+                index_iter = range(dim_len)
+            else:
+                index_iter = range(dim_len - 1, -1, -1)
+
+            axes.append(index_iter)
+
+        return list(itertools.product(*axes))
 
 
 class InvalidParamsError(Exception):

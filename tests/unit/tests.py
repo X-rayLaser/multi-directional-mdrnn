@@ -54,9 +54,69 @@ class DirectionValidationInMultidimensionalRNN(DirectionValidationTestCase):
         self.assert_valid_direction(Direction(-1, 1))
 
 
-class MDRNNReproductionTests(TestCase):
-    def test(self):
-        pass
+class DirectionTests(TestCase):
+    def test_left_to_right(self):
+        direction = Direction(1)
+
+        it = direction.iterate_positions(dim_lengths=[2])
+        positions = list(it)
+
+        expected = [(0,), (1,)]
+        self.assertEqual(expected, positions)
+
+    def test_right_to_left(self):
+        direction = Direction(-1)
+
+        it = direction.iterate_positions(dim_lengths=[3])
+        positions = list(it)
+
+        expected = [(2,), (1,), (0,)]
+        self.assertEqual(expected, positions)
+
+
+class NorthWestDirection(TestCase):
+    def setUp(self):
+        self.dim_lengths = [2, 3]
+        self.direction = self.get_direction()
+        self.expected = self.get_expected_result()
+
+    def get_direction(self):
+        return Direction(-1, -1)
+
+    def get_expected_result(self):
+        return [(1, 2), (1, 1), (1, 0), (0, 2), (0, 1), (0, 0)]
+
+    def test_direction(self):
+        direction = self.direction
+
+        it = direction.iterate_positions(dim_lengths=self.dim_lengths)
+        positions = list(it)
+
+        self.assertEqual(self.expected, positions)
+
+
+class NorthEastDirection(NorthWestDirection):
+    def get_direction(self):
+        return Direction(-1, 1)
+
+    def get_expected_result(self):
+        return [(1, 0), (1, 1), (1, 2), (0, 0), (0, 1), (0, 2)]
+
+
+class SouthWestDirection(NorthWestDirection):
+    def get_direction(self):
+        return Direction(1, -1)
+
+    def get_expected_result(self):
+        return [(0, 2), (0, 1), (0, 0), (1, 2), (1, 1), (1, 0)]
+
+
+class SouthEastDirection(NorthWestDirection):
+    def get_direction(self):
+        return Direction(1, 1)
+
+    def get_expected_result(self):
+        return [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]
 
 
 # todo 1 dimensional rnn, specify iteration direction
