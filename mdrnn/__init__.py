@@ -98,6 +98,10 @@ class MDRNN(tf.keras.layers.Layer):
             raise InputRankMismatchError(inp.shape)
 
     def _make_graph(self, inp, initial_state):
+        original_shape = inp.shape
+        if self.ndims == 2 and inp.shape[1:-1] == (1, 1):
+            inp = tf.reshape(inp, shape=[-1, 1, inp.shape[-1]])
+
         a = tf.constant(initial_state, dtype=tf.float32)
 
         Tx = inp.shape[1]
@@ -114,7 +118,10 @@ class MDRNN(tf.keras.layers.Layer):
             a = self.activation(z)
             outputs[i] = a
 
-        return tf.stack(outputs, axis=1)
+        res = tf.stack(outputs, axis=1)
+        if self.ndims == 2 and original_shape[1:-1] == (1, 1):
+            res = tf.reshape(res, shape=[-1, 1, 1, self.units])
+        return res
 
     def _prepare_result(self, outputs):
         last_state = outputs[:, -1]

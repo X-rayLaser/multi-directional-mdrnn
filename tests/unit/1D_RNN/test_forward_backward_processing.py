@@ -3,7 +3,8 @@ from unittest.case import TestCase
 import numpy as np
 from tensorflow.keras import initializers
 
-from mdrnn import MDRNN, Direction
+from mdrnn import MDRNN, Direction, MultiDirectional
+import tensorflow as tf
 
 
 class ForwardBackwardProcessingTests(TestCase):
@@ -55,8 +56,6 @@ class ForwardBackwardProcessingTests(TestCase):
         self.assertEqual((1, 3, 2), a.shape)
 
     def test_bidirectional_rnn_returns_correct_result(self):
-        from mdrnn import MultiDirectional
-
         rnn = self.create_mdrnn(direction=Direction(1))
 
         rnn = MultiDirectional(rnn)
@@ -70,3 +69,21 @@ class ForwardBackwardProcessingTests(TestCase):
         ]).reshape((1, 3, 2))
 
         np.testing.assert_almost_equal(expected_result, a.numpy(), 8)
+
+    def test(self):
+        seed = 1
+        kwargs = dict(units=3, input_shape=(None, 5),
+                      kernel_initializer=initializers.glorot_uniform(seed),
+                      recurrent_initializer=initializers.he_normal(seed),
+                      bias_initializer=initializers.Constant(2),
+                      return_sequences=True,
+                      activation='relu'
+                      )
+
+        rnn = MultiDirectional(MDRNN(**kwargs))
+
+        keras_rnn = tf.keras.layers.Bidirectional(tf.keras.layers.SimpleRNN(**kwargs))
+
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+
+        np.testing.assert_almost_equal(rnn(x).numpy(), keras_rnn(x).numpy(), 6)

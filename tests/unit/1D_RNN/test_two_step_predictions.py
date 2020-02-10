@@ -1,8 +1,8 @@
 from unittest.case import TestCase
 
 import numpy as np
-from tensorflow_core.python.keras.api._v2.keras import initializers
-
+from tensorflow.keras import initializers
+import tensorflow as tf
 from mdrnn import MDRNN
 
 
@@ -44,7 +44,42 @@ class TwoStepRNNTests(TestCase):
         x1 = np.array([1, 2, 4])
         x2 = np.array([9, 8, 6])
         x = np.array([x1, x2])
-        a = mdrnn.call(x.reshape(1, 2, -1))
+        a = mdrnn.call(
+            x.reshape((1, 2, -1))
+        )
 
         expected_result = np.array([[x1 + bias, x1 + x2 + 2 * bias]])
         np.testing.assert_almost_equal(expected_result, a.numpy(), 8)
+
+
+class CheckingMDRNNOutputAgainstKerasSimpleRNN(TestCase):
+    def setUp(self):
+        seed = 1
+
+        kwargs = dict(units=3, input_shape=(None, 5),
+                      kernel_initializer=initializers.glorot_uniform(seed),
+                      recurrent_initializer=initializers.he_normal(seed),
+                      bias_initializer=initializers.Constant(2),
+                      return_sequences=True,
+                      activation='relu'
+                      )
+        self.kwargs = kwargs
+
+    def test_output_sequences_match(self):
+        self.kwargs.update(dict(return_sequences=True))
+        rnn = MDRNN(**self.kwargs)
+        keras_rnn = tf.keras.layers.SimpleRNN(**self.kwargs)
+
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+
+        np.testing.assert_almost_equal(rnn(x).numpy(), keras_rnn(x).numpy(), 6)
+
+    def test_hidden_states_match(self):
+        self.kwargs.update(dict(return_sequences=False))
+
+        rnn = MDRNN(**self.kwargs)
+        keras_rnn = tf.keras.layers.SimpleRNN(**self.kwargs)
+
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+
+        np.testing.assert_almost_equal(rnn(x).numpy(), keras_rnn(x).numpy(), 6)
