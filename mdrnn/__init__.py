@@ -33,6 +33,7 @@ class MDRNN(tf.keras.layers.Layer):
 
         self._validate_direction(direction, ndims)
 
+        self._input_shape = input_shape
         self.ndims = ndims
         self.input_dim = input_dim
         self.units = units
@@ -40,6 +41,9 @@ class MDRNN(tf.keras.layers.Layer):
         self.return_state = return_state
         self.direction = direction
         self.activation = tf.keras.activations.get(activation)
+        self._kernel_initializer = kernel_initializer
+        self._recurrent_initializer = recurrent_initializer
+        self._bias_initializer = bias_initializer
 
         default_initializer = tf.keras.initializers.he_normal()
 
@@ -57,6 +61,15 @@ class MDRNN(tf.keras.layers.Layer):
             self.ba = default_initializer((1, units), dtype=tf.float32)
         else:
             self.ba = bias_initializer((1, units), dtype=tf.float32)
+
+    def spawn(self, direction):
+        return MDRNN(units=self.units, input_shape=self._input_shape,
+                     kernel_initializer=self._kernel_initializer,
+                     recurrent_initializer=self._recurrent_initializer,
+                     bias_initializer=self._bias_initializer,
+                     activation=self.activation,
+                     return_sequences=self.return_sequences,
+                     direction=direction)
 
     def _validate_direction(self, direction, ndims):
         if not isinstance(direction, Direction):
@@ -113,6 +126,22 @@ class MDRNN(tf.keras.layers.Layer):
         if self.return_state:
             return returned_outputs, last_state
         return returned_outputs
+
+
+class MultiDirectional(tf.keras.layers.Layer):
+    def __init__(self, rnn, **kwargs):
+        super().__init__(**kwargs)
+        self._forward_rnn = rnn.spawn(direction=Direction(1))
+        self._backward_rnn = rnn.spawn(direction=Direction(-1))
+
+    def build(self, input_shape):
+        pass
+
+    def call(self, inputs, **kwargs):
+        a_forward = self._forward_rnn.call(inputs, **kwargs)
+        a_backward = self._backward_rnn.call(inputs, **kwargs)
+
+        return tf.concat([a_forward, a_backward], axis=2)
 
 
 class Direction:
