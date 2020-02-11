@@ -49,19 +49,23 @@ class MDRNN(tf.keras.layers.Layer):
         default_initializer = tf.keras.initializers.he_normal()
 
         if kernel_initializer is None:
-            self.wax = default_initializer((input_dim, units), dtype=tf.float32)
-        else:
-            self.wax = kernel_initializer((input_dim, units), dtype=tf.float32)
+            kernel_initializer = default_initializer
 
         if recurrent_initializer is None:
-            self.waa = default_initializer((units, units), dtype=tf.float32)
-        else:
-            self.waa = recurrent_initializer((units, units), dtype=tf.float32)
+            recurrent_initializer = default_initializer
 
         if bias_initializer is None:
-            self.ba = default_initializer((1, units), dtype=tf.float32)
-        else:
-            self.ba = bias_initializer((1, units), dtype=tf.float32)
+            bias_initializer = default_initializer
+
+        self.wax = tf.Variable(kernel_initializer((input_dim, units), dtype=tf.float32))
+        self.recurrent_kernels = []
+
+        for _ in range(self.ndims):
+            self.recurrent_kernels.append(
+                tf.Variable(recurrent_initializer((units, units), dtype=tf.float32))
+            )
+
+        self.ba = tf.Variable(bias_initializer((1, units), dtype=tf.float32))
 
     def spawn(self, direction):
         return MDRNN(units=self.units, input_shape=self._input_shape,
@@ -103,20 +107,39 @@ class MDRNN(tf.keras.layers.Layer):
 
         dim_lengths = inp.shape[1:-1]
 
-        outputs = np.zeros(inp.shape[1:-1], dtype=np.int).tolist()
+        outputs = np.zeros(dim_lengths, dtype=np.int).tolist()
 
         positions = self.direction.iterate_positions(dim_lengths)
 
         for position in positions:
             batch = self._get_batch(inp, position)
-            z = tf.add(tf.matmul(a, self.waa), tf.matmul(batch, self.wax))
+            z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
+
+            if self.ndims == 1:
+                waa = self.recurrent_kernels[0]
+                z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
+            else:
+                for d in range(len(self.recurrent_kernels)):
+                    waa = self.recurrent_kernels[d]
+                    prev_position = self._prev_position(position, d)
+
+                    bad_case = False
+                    for index in prev_position:
+                        if index < 0:
+                            bad_case = True
+
+                    if bad_case:
+                        continue
+                    a = self._get_prev_activations(outputs, prev_position)
+                    z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
+
+            z = tf.add(z_recurrent, tf.matmul(batch, self.wax))
             z = tf.add(z, self.ba)
             a = self.activation(z)
 
             self._add_result(outputs, position, a)
 
-        res = tf.stack(outputs, axis=self.ndims)
-        return res
+        return self._list_to_tensor(outputs)
 
     def _get_batch(self, tensor, position):
         i = position[0]
@@ -125,6 +148,27 @@ class MDRNN(tf.keras.layers.Layer):
         for index in position[1:]:
             t = t[:, index]
         return t
+
+    def _get_prev_activations(self, outputs, position):
+        if len(position) > 1:
+            sub_list = outputs[position[0]]
+            for index in position[1:-1]:
+                sub_list = sub_list[index]
+
+            return sub_list[position[-1]]
+        else:
+            return outputs[position[0]]
+
+    def _prev_position(self, position, d):
+        if self.ndims == 1:
+            return position[0] - 1,
+
+        if self.ndims == 2:
+            i, j = tuple(position)
+            if d == 0:
+                return i - 1, j
+            else:
+                return i, j - 1
 
     def _add_result(self, outputs, position, a):
         if len(position) > 1:
@@ -135,6 +179,17 @@ class MDRNN(tf.keras.layers.Layer):
             sub_list[position[-1]] = a
         else:
             outputs[position[0]] = a
+
+    def _list_to_tensor(self, outputs):
+        if self.ndims == 1:
+            return tf.stack(outputs, axis=1)
+
+        if self.ndims == 2:
+            tensors = []
+            for row in outputs:
+                tensors.append(tf.stack(row, axis=1))
+
+            return tf.stack(tensors, axis=1)
 
     def _prepare_result(self, outputs):
         last_state = outputs[:, -1]
@@ -162,6 +217,48 @@ class MultiDirectional(tf.keras.layers.Layer):
         a_backward = self._backward_rnn.call(inputs, **kwargs)
 
         return tf.concat([a_forward, a_backward], axis=2)
+
+
+class MultiDimensionalGrid:
+    def __init__(self, grid_shape):
+        self._shape = grid_shape
+        self._grid = np.zeros(grid_shape).tolist()
+
+    def set_grid(self, grid):
+        self._grid = list(grid)
+
+    def put_item(self, position, item):
+        inner_list = self._get_inner_most_list(position)
+        inner_list[position[-1]] = item
+
+    def get_item(self, position):
+        if len(position) != len(self._shape):
+            raise InvalidPositionError()
+
+        for i, xd in enumerate(position):
+            if xd < 0 or xd >= self._shape[i]:
+                raise PositionOutOfBoundsError()
+
+        row = self._get_inner_most_list(position)
+        return row[position[-1]]
+
+    def _get_inner_most_list(self, position):
+        if len(position) > 1:
+            sub_list = self._grid[position[0]]
+            for index in position[1:-1]:
+                sub_list = sub_list[index]
+
+            return sub_list
+        else:
+            return self._grid
+
+
+class PositionOutOfBoundsError(Exception):
+    pass
+
+
+class InvalidPositionError(Exception):
+    pass
 
 
 class Direction:
