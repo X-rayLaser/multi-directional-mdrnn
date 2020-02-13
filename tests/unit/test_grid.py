@@ -1,10 +1,11 @@
 from unittest import TestCase
-from mdrnn import MultiDimensionalGrid, PositionOutOfBoundsError, InvalidPositionError
+from mdrnn import MultiDimensionalGrid, TensorGrid, PositionOutOfBoundsError, InvalidPositionError
 import tensorflow as tf
 import numpy as np
+import itertools
 
 
-class TensorGridTests(TestCase):
+class ExceptionsTests(TestCase):
     def setUp(self):
         self.grid = MultiDimensionalGrid(grid_shape=(4, 2))
 
@@ -38,12 +39,50 @@ class TensorGridTests(TestCase):
         )
 
 
+class GridPositionsTests(TestCase):
+    def test_for_1d_grid(self):
+        grid = MultiDimensionalGrid(grid_shape=(3, ))
+        all_positions = list(grid.get_positions())
+        self.assertEqual([(0,), (1,), (2,)], all_positions)
+
+    def test_for_2d_grid(self):
+        grid = MultiDimensionalGrid(grid_shape=(2, 3))
+        all_positions = list(grid.get_positions())
+        expected = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]
+        self.assertEqual(expected, all_positions)
+
+
+def get_inner_most_list(a, position):
+    if len(position) == 1:
+        return a
+
+    sublist = a[position[0]]
+    sub_position = position[1:]
+    return get_inner_most_list(sublist, sub_position)
+
+
 class RetrievalTests(TestCase):
+    def assert_all_retrievals_are_correct(self, grid, expected_list, shape):
+        for position in grid.get_positions():
+            actual_item = grid.get_item(position)
+            inner_list = get_inner_most_list(expected_list, position)
+            expected_item = inner_list[position[-1]]
+            self.assertEqual(expected_item, actual_item)
+
     def test_1d(self):
         grid = MultiDimensionalGrid(grid_shape=(3, ))
         grid.set_grid([1, 2, 3])
 
         self.assertEqual(2, grid.get_item((1, )))
+
+    def test_all_retrievals_from_1d_grid_return_correct_items(self):
+        grid = MultiDimensionalGrid(grid_shape=(3, ))
+
+        a = [1, 2, 3]
+        grid.set_grid(a)
+
+        for i in range(3):
+            self.assertEqual(a[i], grid.get_item((i,)))
 
     def test_retrieve_from_2d_grid(self):
         grid = MultiDimensionalGrid(grid_shape=(2, 3))
@@ -55,32 +94,54 @@ class RetrievalTests(TestCase):
         self.assertEqual(4, grid.get_item((1, 0)))
         self.assertEqual(3, grid.get_item((0, 2)))
 
-    def test_retrieve_from_3d_grid(self):
-        grid = MultiDimensionalGrid(grid_shape=(2, 2, 3))
+    def test_all_retrievals_from_2d_grid_return_correct_items(self):
+        grid = MultiDimensionalGrid(grid_shape=(2, 3))
 
-        mtx1 = [[1, 2, 3],
-                [4, 5, 6]]
-        mtx2 = [[7, 8, 9],
-                [10, 11, 12]]
-
-        a = [mtx1, mtx2]
+        a = [[1, 2, 3],
+             [4, 5, 6]]
         grid.set_grid(a)
 
-        self.assertEqual(7, grid.get_item((1, 0, 0)))
-        self.assertEqual(12, grid.get_item((1, 1, 2)))
+        for i in range(2):
+            for j in range(3):
+                self.assertEqual(a[i][j], grid.get_item((i, j)))
 
-    def test_retrieve_from_6d_grid(self):
-        shape = (2, 3, 4, 5, 6, 7)
+    def test_all_retrievals_from_3d_grid_return_correct_items(self):
+        shape = (5, 3, 2)
         grid = MultiDimensionalGrid(grid_shape=shape)
 
-        a = np.arange(2 * 3 * 4 * 5 * 6 * 7).reshape(shape).tolist()
-
+        a = np.arange(5*3*2).reshape(shape).tolist()
         grid.set_grid(a)
 
-        self.assertEqual(a[1][2][3][4][5][6], grid.get_item((1, 2, 3, 4, 5, 6)))
+        self.assert_all_retrievals_are_correct(grid, a, shape)
+
+    def test_retrieve_from_10d_grid(self):
+        shape = tuple([2] * 10)
+        grid = MultiDimensionalGrid(grid_shape=shape)
+        a = np.arange(2**10).reshape(shape).tolist()
+        grid.set_grid(a)
+
+        self.assert_all_retrievals_are_correct(grid, a, shape)
+
+    def test_store_and_retrieve_in_3d_grid_after_initialization(self):
+        grid = MultiDimensionalGrid(grid_shape=(2, 4, 3))
+        pos = (1, 2, 2)
+
+        self.assertEqual(0, grid.get_item(pos))
 
 
 class StoringTests(TestCase):
+    def assert_retrieved_items_match_stored_ones(self, grid, a, shape):
+        for position in grid.get_positions():
+            inner_list = get_inner_most_list(a, position)
+            item = inner_list[position[-1]]
+            grid.put_item(position, item)
+
+        for position in grid.get_positions():
+            inner_list = get_inner_most_list(a, position)
+            expected_item = inner_list[position[-1]]
+            item = grid.get_item(position)
+            self.assertEqual(expected_item, item)
+
     def setUp(self):
         self.grid = MultiDimensionalGrid(grid_shape=(4, 2))
 
@@ -109,3 +170,48 @@ class StoringTests(TestCase):
 
         actual = self.grid.get_item(pos2)
         self.assertEqual(t2, actual)
+
+    def test_filling_2d_grid_completely_and_retrieving_all_entries(self):
+        a = np.arange(4*2).reshape(4, 2)
+        self.assert_retrieved_items_match_stored_ones(self.grid, a, (4, 2))
+
+    def test_store_and_retrieve_in_3d_grid(self):
+        grid = MultiDimensionalGrid(grid_shape=(2, 4, 3))
+        pos = (1, 2, 2)
+
+        item = 35
+        self.assertEqual(0, grid.get_item(pos))
+        grid.put_item(pos, item)
+        self.assertEqual(item, grid.get_item(pos))
+
+    def test_filling_10d_grid_and_retrieving_all_entries_back(self):
+        shape = tuple([2]*10)
+        grid = MultiDimensionalGrid(shape)
+        a = np.arange(2**10).reshape(shape).tolist()
+
+        self.assert_retrieved_items_match_stored_ones(grid, a, shape)
+
+
+class TensorGridTests(TestCase):
+    def test_contains_zero_tensors_of_correct_shape_initially(self):
+        tensor_shape = (2, 3, 2, 4)
+        grid = TensorGrid(grid_shape=(1, 2), tensor_shape=tensor_shape)
+
+        tensor = grid.get_item((0, 0))
+        np.testing.assert_almost_equal(np.zeros(tensor_shape), tensor.numpy())
+
+        tensor = grid.get_item((0, 1))
+        np.testing.assert_almost_equal(np.zeros(tensor_shape), tensor.numpy())
+
+    def test_store_and_retrive_tensor(self):
+        grid = TensorGrid((3, 5, 4), tensor_shape=(2, ))
+
+        t = tf.constant([2, 3])
+
+        position = (0, 2, 2)
+        grid.put_item(position, t)
+
+        np.testing.assert_almost_equal(t.numpy(), grid.get_item(position).numpy(), 6)
+
+    def test_converts_to_tensor_of_right_shape(self):
+        pass
