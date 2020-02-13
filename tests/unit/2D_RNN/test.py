@@ -76,8 +76,41 @@ class GridInputTests(TestCase):
         actual = rnn2d.call(x)
 
         desired = np.array([
-            [0, 1, 3],
-            [3, 8, 16]
+            [-1, -1, 0],
+            [1, 3, 7]
         ]).reshape((1, 2, 3, 1))
 
         np.testing.assert_almost_equal(desired, actual.numpy(), 6)
+
+    def test_result_after_running_rnn_on_3d_input(self):
+        rnn3d = MDRNN(units=1, input_shape=(None, None, None, 1),
+                      kernel_initializer=initializers.Identity(),
+                      recurrent_initializer=initializers.Identity(1),
+                      bias_initializer=initializers.Constant(1),
+                      return_sequences=True,
+                      activation=None)
+
+        x = np.arange(2*2*2).reshape((1, 2, 2, 2, 1))
+
+        actual = rnn3d.call(x)
+
+        desired = np.array([
+            [[1, 3],
+             [4, 11]],
+            [[6, 15],
+             [17, 51]]
+        ]).reshape((1, 2, 2, 2, 1))
+
+        np.testing.assert_almost_equal(desired, actual.numpy(), 6)
+
+    def test_shape_of_output_of_6d_rnn(self):
+        units = 7
+        last_dim_size = 12
+        rnn = MDRNN(units=units, input_shape=(None, None, None, None, None, None, last_dim_size),
+                    return_sequences=True,
+                    activation='tanh')
+
+        x = tf.zeros(shape=(2, 3, 1, 2, 2, 1, 5, last_dim_size))
+
+        result = rnn.call(x)
+        self.assertEqual((2, 3, 1, 2, 2, 1, 5, units), result.shape)

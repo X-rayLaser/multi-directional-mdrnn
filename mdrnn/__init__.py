@@ -108,7 +108,7 @@ class MDRNN(tf.keras.layers.Layer):
         dim_lengths = inp.shape[1:-1]
 
         tensor_shape = (inp.shape[0], self.input_dim)
-        print(tensor_shape)
+
         outputs = TensorGrid(grid_shape=dim_lengths, tensor_shape=tensor_shape)
 
         positions = self.direction.iterate_positions(dim_lengths)
@@ -152,15 +152,7 @@ class MDRNN(tf.keras.layers.Layer):
         return t
 
     def _prev_position(self, position, d):
-        if self.ndims == 1:
-            return position[0] - 1,
-
-        if self.ndims == 2:
-            i, j = tuple(position)
-            if d == 0:
-                return i - 1, j
-            else:
-                return i, j - 1
+        return position[:d] + (position[d] - 1,) + position[d + 1:]
 
     def _prepare_result(self, outputs):
         last_state = outputs[:, -1]
