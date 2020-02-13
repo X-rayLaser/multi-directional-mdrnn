@@ -107,7 +107,9 @@ class MDRNN(tf.keras.layers.Layer):
 
         dim_lengths = inp.shape[1:-1]
 
-        outputs = MultiDimensionalGrid(dim_lengths)
+        tensor_shape = (inp.shape[0], self.input_dim)
+        print(tensor_shape)
+        outputs = TensorGrid(grid_shape=dim_lengths, tensor_shape=tensor_shape)
 
         positions = self.direction.iterate_positions(dim_lengths)
 
@@ -130,7 +132,7 @@ class MDRNN(tf.keras.layers.Layer):
 
                     if bad_case:
                         continue
-                    a = self._get_prev_activations(outputs, prev_position)
+                    a = outputs.get_item(prev_position)
                     z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
 
             z = tf.add(z_recurrent, tf.matmul(batch, self.wax))
@@ -139,7 +141,7 @@ class MDRNN(tf.keras.layers.Layer):
 
             outputs.put_item(position, a)
 
-        return self._list_to_tensor(outputs)
+        return outputs.to_tensor()
 
     def _get_batch(self, tensor, position):
         i = position[0]
@@ -148,9 +150,6 @@ class MDRNN(tf.keras.layers.Layer):
         for index in position[1:]:
             t = t[:, index]
         return t
-
-    def _get_prev_activations(self, outputs, position):
-        return outputs.get_item(position)
 
     def _prev_position(self, position, d):
         if self.ndims == 1:
@@ -162,18 +161,6 @@ class MDRNN(tf.keras.layers.Layer):
                 return i - 1, j
             else:
                 return i, j - 1
-
-    def _list_to_tensor(self, outputs):
-        outputs = outputs.tolist()
-        if self.ndims == 1:
-            return tf.stack(outputs, axis=1)
-
-        if self.ndims == 2:
-            tensors = []
-            for row in outputs:
-                tensors.append(tf.stack(row, axis=1))
-
-            return tf.stack(tensors, axis=1)
 
     def _prepare_result(self, outputs):
         last_state = outputs[:, -1]
@@ -227,15 +214,21 @@ class MultiDimensionalGrid:
         if len(position) != len(self._shape):
             raise InvalidPositionError()
 
-        for i, xd in enumerate(position):
-            if xd < 0 or xd >= self._shape[i]:
-                raise PositionOutOfBoundsError()
+        self._validate_position_dimensions(position)
 
         row = self._get_inner_most_list(position)
         return row[position[-1]]
 
-    def tolist(self):
-        return self._grid
+    def get_sub_list(self, position):
+        self._validate_position_dimensions(position)
+
+        row = self._get_inner_most_list(position)
+        return row[position[-1]]
+
+    def _validate_position_dimensions(self, position):
+        for i, xd in enumerate(position):
+            if xd < 0 or xd >= self._shape[i]:
+                raise PositionOutOfBoundsError()
 
     def _get_inner_most_list(self, position):
         if len(position) > 1:
@@ -253,8 +246,66 @@ class TensorGrid(MultiDimensionalGrid):
         super().__init__(grid_shape)
 
         for position in self.get_positions():
+            if tensor_shape[0] is None:
+                tensor_shape = (1,) + tensor_shape[1:]
             zeros_tensor = tf.zeros(shape=tensor_shape)
             self.put_item(position, zeros_tensor)
+
+        self._tensor_shape = tensor_shape
+
+    @property
+    def grid_shape(self):
+        return self._shape
+
+    def reduce_rank(self):
+        if len(self.grid_shape) == 1:
+            tensor = tf.stack(self._grid, axis=1)
+            return NullGrid(tensor)
+
+        new_tensor_shape = self._calculate_new_tensor_shape()
+        new_grid_shape = self._calculate_new_grid_shape()
+
+        new_grid = TensorGrid(grid_shape=new_grid_shape,
+                              tensor_shape=new_tensor_shape)
+
+        for position in new_grid.get_positions():
+            tensor = self._fold_sub_list(position)
+            new_grid.put_item(position, tensor)
+
+        return new_grid
+
+    def _calculate_new_tensor_shape(self):
+        batch_size = self._tensor_shape[0]
+        new_tensor_shape = (batch_size,) + (self.grid_shape[-2],) + self._tensor_shape[1:]
+        return new_tensor_shape
+
+    def _calculate_new_grid_shape(self):
+        return self.grid_shape[:-1]
+
+    def _fold_sub_list(self, position):
+        inner_list = self.get_sub_list(position)
+        return tf.stack(inner_list, axis=1)
+
+    def to_tensor(self):
+        new_grid = self.reduce_rank()
+
+        while len(new_grid.grid_shape) > 0:
+            new_grid = new_grid.reduce_rank()
+
+        return new_grid.get_item((0,))
+
+
+class NullGrid(MultiDimensionalGrid):
+    def __init__(self, tensor):
+        super().__init__(tuple())
+        self._tensor = tensor
+
+    @property
+    def grid_shape(self):
+        return tuple()
+
+    def get_item(self, position):
+        return self._tensor
 
 
 class PositionOutOfBoundsError(Exception):

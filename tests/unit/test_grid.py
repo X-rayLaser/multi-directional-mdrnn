@@ -213,5 +213,77 @@ class TensorGridTests(TestCase):
 
         np.testing.assert_almost_equal(t.numpy(), grid.get_item(position).numpy(), 6)
 
-    def test_converts_to_tensor_of_right_shape(self):
-        pass
+    def test_reduce_1d_grid_to_single_tensor_of_right_shape(self):
+        grid = TensorGrid((3, ), tensor_shape=(2, 5))
+        null_grid = grid.reduce_rank()
+        self.assertTupleEqual(tuple(), null_grid.grid_shape)
+        self.assertEqual((2, 3, 5), null_grid.get_item(0).shape)
+
+        grid = TensorGrid((3, ), tensor_shape=(2,))
+        null_grid = grid.reduce_rank()
+        self.assertEqual((2, 3), null_grid.get_item(0).shape)
+
+    def test_reduce_1d_grid_produces_correct_tensor(self):
+        grid = TensorGrid((2, ), tensor_shape=(3,))
+        a1 = np.arange(3)
+        a2 = np.arange(3) + 3
+
+        grid.put_item((0,), tf.constant(a1))
+        grid.put_item((1,), tf.constant(a2))
+
+        null_grid = grid.reduce_rank()
+        actual = null_grid.get_item(0)
+
+        expected = np.array([
+            [0, 3],
+            [1, 4],
+            [2, 5]
+        ])
+
+        np.testing.assert_almost_equal(expected, actual.numpy())
+
+    def test_reduce_2d_grid_to_1d_grid(self):
+        grid_2d = TensorGrid((2, 3), tensor_shape=(4, 5))
+        grid_1d = grid_2d.reduce_rank()
+        self.assertTupleEqual((2,), grid_1d.grid_shape)
+        self.assertEqual((4, 3, 5), grid_1d.get_item((0,)).shape)
+        self.assertEqual((4, 3, 5), grid_1d.get_item((1,)).shape)
+
+    def test_reduce_3d_grid_to_2d_grid_of_tensors(self):
+        grid_3d = TensorGrid((2, 3, 4), tensor_shape=(10, 6))
+        grid_2d = grid_3d.reduce_rank()
+        self.assertTupleEqual((2, 3), grid_2d.grid_shape)
+
+        for i in range(2):
+            for j in range(3):
+                self.assertEqual((10, 4, 6), grid_2d.get_item((i, j)).shape)
+
+    def test_reduce_3d_grid_to_1d_grid_of_tensors(self):
+        grid_3d = TensorGrid((2, 3, 4), tensor_shape=(10, 6))
+        null_grid = grid_3d.reduce_rank().reduce_rank().reduce_rank()
+        self.assertTupleEqual((), null_grid.grid_shape)
+
+        self.assertEqual((10, 2, 3, 4, 6), null_grid.get_item(0).shape)
+
+
+class TensorGridToTensorTests(TestCase):
+    def test_convert_1d_grid(self):
+        tensor_shape = (2, 4)
+
+        grid = TensorGrid(grid_shape=(3,), tensor_shape=tensor_shape)
+
+        self.assertEqual((2, 3, 4), grid.to_tensor().shape)
+
+    def test_convert_2d_grid(self):
+        tensor_shape = (2, 4)
+
+        grid = TensorGrid(grid_shape=(3, 5), tensor_shape=tensor_shape)
+
+        self.assertEqual((2, 3, 5, 4), grid.to_tensor().shape)
+
+    def test_convert_3d_grid(self):
+        tensor_shape = (2, 4)
+
+        grid = TensorGrid(grid_shape=(3, 5, 6), tensor_shape=tensor_shape)
+
+        self.assertEqual((2, 3, 5, 6, 4), grid.to_tensor().shape)
