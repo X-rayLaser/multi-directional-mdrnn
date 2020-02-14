@@ -115,21 +115,13 @@ class MDRNN(tf.keras.layers.Layer):
 
         for position in positions:
             batch = self._get_batch(inp, position)
-            z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
 
             if self.ndims == 1:
                 waa = self.recurrent_kernels[0]
+                z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
                 z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
             else:
-                for d in range(len(self.recurrent_kernels)):
-                    waa = self.recurrent_kernels[d]
-                    prev_position = self._prev_position(position, d)
-
-                    try:
-                        a = outputs.get_item(prev_position)
-                        z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
-                    except PositionOutOfBoundsError:
-                        pass
+                z_recurrent = self._compute_recurrent_weighted_sum(outputs, position)
 
             z = tf.add(z_recurrent, tf.matmul(batch, self.wax))
             z = tf.add(z, self.ba)
@@ -147,9 +139,31 @@ class MDRNN(tf.keras.layers.Layer):
             t = t[:, index]
         return t
 
-    def _prev_position(self, position, d):
-        step = self.direction._dirs[d]
-        return position[:d] + (position[d] - step,) + position[d + 1:]
+    def _compute_recurrent_weighted_sum(self, outputs, position):
+        z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
+
+        previous = self.direction.get_previous_step_positions(position)
+
+        axes_with_positions = self._discard_out_of_bound_positions(outputs, previous)
+
+        for axis, prev_position in axes_with_positions:
+            waa = self.recurrent_kernels[axis]
+            a = outputs.get_item(prev_position)
+            z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
+
+        return z_recurrent
+
+    def _discard_out_of_bound_positions(self, output_grid, positions):
+        valid_positions = []
+
+        for axis, prev_position in enumerate(positions):
+            try:
+                output_grid.get_item(prev_position)
+                valid_positions.append((axis, prev_position))
+            except PositionOutOfBoundsError:
+                pass
+
+        return valid_positions
 
     def _prepare_result(self, outputs):
         last_state = outputs[:, -1]
@@ -330,13 +344,14 @@ class Direction:
     def get_previous_step_positions(self, current_position):
         res = []
         for d in range(len(self._dirs)):
-            res.append(self._prev_position(current_position, d))
+            position = self._get_previous_position_along_axis(current_position, d)
+            res.append(position)
 
         return res
 
-    def _prev_position(self, position, d):
-        step = self._dirs[d]
-        return position[:d] + (position[d] - step,) + position[d + 1:]
+    def _get_previous_position_along_axis(self, position, axis):
+        step = self._dirs[axis]
+        return position[:axis] + (position[axis] - step,) + position[axis + 1:]
 
 
 class InvalidParamsError(Exception):
