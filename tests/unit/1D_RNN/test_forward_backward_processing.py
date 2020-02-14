@@ -87,3 +87,18 @@ class ForwardBackwardProcessingTests(TestCase):
         x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
 
         np.testing.assert_almost_equal(rnn(x).numpy(), keras_rnn(x).numpy(), 6)
+
+    def test_with_functor(self):
+        rnn = self.create_mdrnn(direction=Direction(1))
+
+        rnn = MultiDirectional(rnn)
+
+        a = rnn(self.x, initial_state=self.initial_state)
+
+        expected_result = np.array([
+            [2, 8],
+            [4, 4],
+            [8, 2]
+        ]).reshape((1, 3, 2))
+
+        np.testing.assert_almost_equal(expected_result, a.numpy(), 8)

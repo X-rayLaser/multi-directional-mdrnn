@@ -35,10 +35,15 @@ class DirectionValidationTests(DirectionValidationTestCase):
 
     def test_length_of_direction_vector_must_match_dimensionality_of_input(self):
         self.assert_invalid_direction(Direction())
-        self.assert_invalid_direction(Direction(1, 0))
+        self.assert_invalid_direction(Direction(1, 1))
 
     def test_with_valid_direction(self):
         self.assert_valid_direction(Direction(-1))
+
+    def test_cannot_instantiate_direction_with_arbitrary_number(self):
+        self.assertRaises(TypeError, lambda: Direction(8))
+        self.assertRaises(TypeError, lambda: Direction(0))
+        self.assertRaises(TypeError, lambda: Direction(-2, 1, -1))
 
 
 class DirectionValidationInMultidimensionalRNN(DirectionValidationTestCase):
@@ -58,7 +63,7 @@ class OneDimensionalDirectionTests(TestCase):
     def test_left_to_right(self):
         direction = Direction(1)
 
-        it = direction.iterate_positions(dim_lengths=[2])
+        it = direction.iterate_over_positions(dim_lengths=[2])
         positions = list(it)
 
         expected = [(0,), (1,)]
@@ -67,7 +72,7 @@ class OneDimensionalDirectionTests(TestCase):
     def test_right_to_left(self):
         direction = Direction(-1)
 
-        it = direction.iterate_positions(dim_lengths=[3])
+        it = direction.iterate_over_positions(dim_lengths=[3])
         positions = list(it)
 
         expected = [(2,), (1,), (0,)]
@@ -152,7 +157,7 @@ class NorthWestDirection(TestCase):
     def test_direction(self):
         direction = self.direction
 
-        it = direction.iterate_positions(dim_lengths=self.dim_lengths)
+        it = direction.iterate_over_positions(dim_lengths=self.dim_lengths)
         positions = list(it)
 
         self.assertEqual(self.expected, positions)

@@ -89,8 +89,10 @@ class MDRNN(tf.keras.layers.Layer):
         if not isinstance(inp, tf.Tensor):
             inp = tf.constant(inp, dtype=tf.float32)
 
-        initial_state = self._prepare_initial_state(initial_state)
+        if inp.dtype != tf.float32:
+            inp = tf.cast(inp, dtype=tf.float32)
 
+        initial_state = self._prepare_initial_state(initial_state)
         outputs = self._make_graph(inp, initial_state)
 
         return self._prepare_result(outputs)
@@ -126,7 +128,7 @@ class MDRNN(tf.keras.layers.Layer):
 
         outputs = TensorGrid(grid_shape=grid_shape, tensor_shape=tensor_shape)
 
-        positions = self.direction.iterate_positions(grid_shape)
+        positions = self.direction.iterate_over_positions(grid_shape)
 
         first_position = positions[0]
 
@@ -134,9 +136,11 @@ class MDRNN(tf.keras.layers.Layer):
             batch = self._get_batch(inp, position)
 
             if position == first_position:
-                activations = [v for v in initial_state]
+                axis_to_activation = [v for v in initial_state]
                 axes = list(range(self.ndims))
-                z_recurrent = self._compute_weighted_sum_of_activations(activations, axes)
+                z_recurrent = self._compute_weighted_sum_of_activations(
+                    axis_to_activation, axes
+                )
             else:
                 z_recurrent = self._compute_recurrent_weighted_sum(outputs, position)
 
@@ -352,12 +356,15 @@ class InvalidPositionError(Exception):
 class Direction:
     def __init__(self, *directions):
         self._dirs = list(directions)
+        for d in self._dirs:
+            if d not in [-1, 1]:
+                raise TypeError('data type not understood')
 
     @property
     def dimensions(self):
         return len(self._dirs)
 
-    def iterate_positions(self, dim_lengths):
+    def iterate_over_positions(self, dim_lengths):
         axes = []
 
         for i, dim_len in enumerate(dim_lengths):

@@ -88,3 +88,17 @@ class OneStepTests(TestCase):
         x = tf.constant(self.x, dtype=tf.float32)
         expected_result = np.array([[2, 2, 2]])
         self.assert_model_predicts_correct_result(expected_result, mdrnn, x)
+
+    def test_1d_rnn_using_functor(self):
+        mdrnn = self.create_default_mdrnn(
+            kernel_initializer=initializers.Zeros(),
+            recurrent_initializer=initializers.Zeros(),
+            bias_initializer=initializers.Constant(2),
+            activation=None
+        )
+
+        x = tf.constant(self.x, dtype=tf.float32)
+        expected_result = np.array([[2, 2, 2]])
+
+        a = mdrnn(x)
+        np.testing.assert_almost_equal(expected_result, a.numpy(), 8)
