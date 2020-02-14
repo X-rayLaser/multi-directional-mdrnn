@@ -89,8 +89,7 @@ class MDRNN(tf.keras.layers.Layer):
         if not isinstance(inp, tf.Tensor):
             inp = tf.constant(inp, dtype=tf.float32)
 
-        if initial_state is None:
-            initial_state = np.zeros((1, self.units), dtype=np.float)
+        initial_state = self._prepare_initial_state(initial_state)
 
         outputs = self._make_graph(inp, initial_state)
 
@@ -102,24 +101,42 @@ class MDRNN(tf.keras.layers.Layer):
                 or inp.shape[-1] != self.input_dim):
             raise InputRankMismatchError(inp.shape)
 
-    def _make_graph(self, inp, initial_state):
-        a = tf.constant(initial_state, dtype=tf.float32)
+    def _prepare_initial_state(self, initial_state):
+        if initial_state is None:
+            if self.ndims == 1:
+                initial_state = np.zeros((1, self.units), dtype=np.float)
+            else:
+                initial_state = []
+                for i in range(self.ndims):
+                    initial_state.append(np.zeros((1, self.units), dtype=np.float))
 
-        dim_lengths = inp.shape[1:-1]
+        if self.ndims == 1:
+            initial_state = [initial_state]
+
+        a0 = []
+        for i in range(self.ndims):
+            a0.append(tf.constant(initial_state[i], dtype=tf.float32))
+
+        return a0
+
+    def _make_graph(self, inp, initial_state):
+        grid_shape = self._calculate_grid_shape(inp)
 
         tensor_shape = (inp.shape[0], self.input_dim)
 
-        outputs = TensorGrid(grid_shape=dim_lengths, tensor_shape=tensor_shape)
+        outputs = TensorGrid(grid_shape=grid_shape, tensor_shape=tensor_shape)
 
-        positions = self.direction.iterate_positions(dim_lengths)
+        positions = self.direction.iterate_positions(grid_shape)
+
+        first_position = positions[0]
 
         for position in positions:
             batch = self._get_batch(inp, position)
 
-            if self.ndims == 1:
-                waa = self.recurrent_kernels[0]
-                z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
-                z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
+            if position == first_position:
+                activations = [v for v in initial_state]
+                axes = list(range(self.ndims))
+                z_recurrent = self._compute_weighted_sum_of_activations(activations, axes)
             else:
                 z_recurrent = self._compute_recurrent_weighted_sum(outputs, position)
 
@@ -131,6 +148,9 @@ class MDRNN(tf.keras.layers.Layer):
 
         return outputs.to_tensor()
 
+    def _calculate_grid_shape(self, inp):
+        return inp.shape[1:-1]
+
     def _get_batch(self, tensor, position):
         i = position[0]
         t = tensor[:, i]
@@ -140,17 +160,27 @@ class MDRNN(tf.keras.layers.Layer):
         return t
 
     def _compute_recurrent_weighted_sum(self, outputs, position):
-        z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
+        previous_positions = self.direction.get_previous_step_positions(position)
 
-        previous = self.direction.get_previous_step_positions(position)
+        axes_with_positions = self._discard_out_of_bound_positions(
+            outputs, previous_positions
+        )
 
-        axes_with_positions = self._discard_out_of_bound_positions(outputs, previous)
-
+        previous_activations = {}
         for axis, prev_position in axes_with_positions:
-            waa = self.recurrent_kernels[axis]
-            a = outputs.get_item(prev_position)
-            z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
+            previous_activations[axis] = outputs.get_item(prev_position)
 
+        valid_axes = [axis for axis, _ in axes_with_positions]
+
+        return self._compute_weighted_sum_of_activations(previous_activations,
+                                                         valid_axes)
+
+    def _compute_weighted_sum_of_activations(self, axis_to_activation, axes):
+        z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
+        for axis in axes:
+            waa = self.recurrent_kernels[axis]
+            a = axis_to_activation[axis]
+            z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
         return z_recurrent
 
     def _discard_out_of_bound_positions(self, output_grid, positions):

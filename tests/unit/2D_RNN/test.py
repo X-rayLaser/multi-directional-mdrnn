@@ -82,6 +82,25 @@ class GridInputTests(TestCase):
 
         np.testing.assert_almost_equal(desired, actual.numpy(), 6)
 
+    def test_2drnn_output_when_providing_initial_state(self):
+        rnn2d = MDRNN(units=1, input_shape=(None, None, 1),
+                      kernel_initializer=initializers.Identity(),
+                      recurrent_initializer=initializers.Identity(1),
+                      bias_initializer=initializers.Constant(-1),
+                      return_sequences=True,
+                      activation=None)
+
+        x = np.arange(6).reshape((1, 2, 3, 1))
+
+        initial_state = [tf.ones(shape=(1, 1)), tf.ones(shape=(1, 1))]
+
+        actual = rnn2d.call(x, initial_state=initial_state)
+        desired = np.array([
+            [1, 1, 2],
+            [3, 7, 13]
+        ]).reshape((1, 2, 3, 1))
+        np.testing.assert_almost_equal(desired, actual.numpy(), 6)
+
     def test_result_after_running_rnn_on_3d_input(self):
         rnn3d = MDRNN(units=1, input_shape=(None, None, None, 1),
                       kernel_initializer=initializers.Identity(),
