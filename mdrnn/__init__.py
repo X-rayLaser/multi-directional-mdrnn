@@ -125,15 +125,11 @@ class MDRNN(tf.keras.layers.Layer):
                     waa = self.recurrent_kernels[d]
                     prev_position = self._prev_position(position, d)
 
-                    bad_case = False
-                    for index in prev_position:
-                        if index < 0:
-                            bad_case = True
-
-                    if bad_case:
-                        continue
-                    a = outputs.get_item(prev_position)
-                    z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
+                    try:
+                        a = outputs.get_item(prev_position)
+                        z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
+                    except PositionOutOfBoundsError:
+                        pass
 
             z = tf.add(z_recurrent, tf.matmul(batch, self.wax))
             z = tf.add(z, self.ba)
@@ -152,7 +148,8 @@ class MDRNN(tf.keras.layers.Layer):
         return t
 
     def _prev_position(self, position, d):
-        return position[:d] + (position[d] - 1,) + position[d + 1:]
+        step = self.direction._dirs[d]
+        return position[:d] + (position[d] - step,) + position[d + 1:]
 
     def _prepare_result(self, outputs):
         last_state = outputs[:, -1]
@@ -329,6 +326,17 @@ class Direction:
             axes.append(index_iter)
 
         return list(itertools.product(*axes))
+
+    def get_previous_step_positions(self, current_position):
+        res = []
+        for d in range(len(self._dirs)):
+            res.append(self._prev_position(current_position, d))
+
+        return res
+
+    def _prev_position(self, position, d):
+        step = self._dirs[d]
+        return position[:d] + (position[d] - step,) + position[d + 1:]
 
 
 class InvalidParamsError(Exception):

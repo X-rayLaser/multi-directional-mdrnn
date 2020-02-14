@@ -54,7 +54,7 @@ class DirectionValidationInMultidimensionalRNN(DirectionValidationTestCase):
         self.assert_valid_direction(Direction(-1, 1))
 
 
-class DirectionTests(TestCase):
+class OneDimensionalDirectionTests(TestCase):
     def test_left_to_right(self):
         direction = Direction(1)
 
@@ -72,6 +72,69 @@ class DirectionTests(TestCase):
 
         expected = [(2,), (1,), (0,)]
         self.assertEqual(expected, positions)
+
+
+class OneDimensionalDirectionPreviousPositionTests(TestCase):
+    def test_going_left_to_right(self):
+        direction = Direction(1)
+        position = (3,)
+        self.assertEqual([(2,)], direction.get_previous_step_positions(position))
+
+    def test_going_right_to_left(self):
+        direction = Direction(-1)
+        position = (3,)
+        self.assertEqual([(4,)], direction.get_previous_step_positions(position))
+
+
+class SouthEastPreviousPositionTests(TestCase):
+    def setUp(self):
+        self.position = (4, 2)
+
+    def create_direction(self):
+        return Direction(1, 1)
+
+    def expected_result(self):
+        return [(3, 2), (4, 1)]
+
+    def test_previous_step_positions_returns_correct_result(self):
+        direction = self.create_direction()
+        expected_result = self.expected_result()
+        actual = direction.get_previous_step_positions(self.position)
+        self.assertEqual(expected_result, actual)
+
+
+class SouthWestPreviousPositionTests(SouthEastPreviousPositionTests):
+    def create_direction(self):
+        return Direction(1, -1)
+
+    def expected_result(self):
+        return [(3, 2), (4, 3)]
+
+
+class NorthEastPreviousPositionTests(SouthEastPreviousPositionTests):
+    def create_direction(self):
+        return Direction(-1, 1)
+
+    def expected_result(self):
+        return [(5, 2), (4, 1)]
+
+
+class NorthWestPreviousPositionTests(SouthEastPreviousPositionTests):
+    def create_direction(self):
+        return Direction(-1, -1)
+
+    def expected_result(self):
+        return [(5, 2), (4, 3)]
+
+
+class MultiDimensionalDirectionPreviousPositionTests(TestCase):
+    def test(self):
+        direction = Direction(1, -1, -1, 1)
+
+        position = (3, 5, 2, 1)
+        actual = direction.get_previous_step_positions(position)
+        expected = [(2, 5, 2, 1), (3, 6, 2, 1), (3, 5, 3, 1), (3, 5, 2, 0)]
+        self.assertEqual(expected, actual)
 
 
 class NorthWestDirection(TestCase):

@@ -1,6 +1,6 @@
 from unittest import TestCase
 import numpy as np
-from mdrnn import MDRNN
+from mdrnn import MDRNN, Direction
 from tensorflow.keras import initializers
 import tensorflow as tf
 
@@ -114,3 +114,45 @@ class GridInputTests(TestCase):
 
         result = rnn.call(x)
         self.assertEqual((2, 3, 1, 2, 2, 1, 5, units), result.shape)
+
+
+class TwoDimensionalRnnDirectionTests(TestCase):
+    def test_south_east_direction(self):
+        rnn2d = MDRNN(units=1, input_shape=(None, None, 1),
+                      kernel_initializer=initializers.Identity(),
+                      recurrent_initializer=initializers.Identity(1),
+                      bias_initializer=initializers.Constant(-1),
+                      return_sequences=True,
+                      direction=Direction(1, 1),
+                      activation=None)
+
+        x = np.arange(6).reshape((1, 2, 3, 1))
+
+        actual = rnn2d.call(x)
+
+        desired = np.array([
+            [-1, -1, 0],
+            [1, 3, 7]
+        ]).reshape((1, 2, 3, 1))
+
+        np.testing.assert_almost_equal(desired, actual.numpy(), 6)
+
+    def test_south_west_direction(self):
+        rnn2d = MDRNN(units=1, input_shape=(None, None, 1),
+                      kernel_initializer=initializers.Identity(),
+                      recurrent_initializer=initializers.Identity(1),
+                      bias_initializer=initializers.Constant(-1),
+                      return_sequences=True,
+                      direction=Direction(1, -1),
+                      activation=None)
+
+        x = np.arange(6).reshape((1, 2, 3, 1))
+
+        actual = rnn2d.call(x)
+
+        desired = np.array([
+            [0, 1, 1],
+            [11, 9, 5]
+        ]).reshape((1, 2, 3, 1))
+
+        np.testing.assert_almost_equal(desired, actual.numpy(), 6)
