@@ -1,4 +1,4 @@
-# Multi-directional Multidimensional Recurrent Neural Networks
+# Multi-Directional Multi-Dimensional Recurrent Neural Networks
 
 A library built on top of TensorFlow implementing the model described in
 Alex Graves's paper https://arxiv.org/pdf/0705.2011.pdf.
@@ -55,7 +55,7 @@ model.fit(x, y)
 # Features
 
 Layers available now:
-- **MDRNN**:  layer analogous to Keras SimpleRNN layer for processing multidimensional inputs
+- **MDRNN**:  layer analogous to Keras SimpleRNN layer for processing multi-dimensional inputs
 
 Layers currently under development (coming soon):
 - **MDGRU**: analogous to Keras GRU layer
