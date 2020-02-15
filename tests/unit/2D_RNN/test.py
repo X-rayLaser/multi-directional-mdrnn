@@ -107,11 +107,12 @@ class GridInputTests(TestCase):
                       recurrent_initializer=initializers.Identity(1),
                       bias_initializer=initializers.Constant(1),
                       return_sequences=True,
+                      return_state=True,
                       activation=None)
 
         x = np.arange(2*2*2).reshape((1, 2, 2, 2, 1))
 
-        actual = rnn3d.call(x)
+        outputs, state = rnn3d.call(x)
 
         desired = np.array([
             [[1, 3],
@@ -120,7 +121,10 @@ class GridInputTests(TestCase):
              [17, 51]]
         ]).reshape((1, 2, 2, 2, 1))
 
-        np.testing.assert_almost_equal(desired, actual.numpy(), 6)
+        np.testing.assert_almost_equal(desired, outputs.numpy(), 6)
+
+        desired_state = desired[:, -1, -1, -1]
+        np.testing.assert_almost_equal(desired_state, state.numpy(), 6)
 
     def test_shape_of_output_of_6d_rnn(self):
         units = 7
@@ -137,15 +141,16 @@ class GridInputTests(TestCase):
 
 class RnnMovingSouthEast(TestCase):
     def setUp(self):
-        rnn2d = MDRNN(units=1, input_shape=(None, None, 1),
+        kwargs = dict(units=1, input_shape=(None, None, 1),
                       kernel_initializer=initializers.Identity(),
                       recurrent_initializer=initializers.Identity(1),
                       bias_initializer=initializers.Constant(-1),
                       return_sequences=True,
+                      return_state=True,
                       direction=self.get_direction(),
                       activation=None)
 
-        self.rnn = rnn2d
+        self.rnn = MDRNN(**kwargs)
 
         self.x = np.arange(6).reshape((1, 2, 3, 1))
 
@@ -158,15 +163,23 @@ class RnnMovingSouthEast(TestCase):
             [1, 3, 7]
         ]).reshape((1, 2, 3, 1))
 
-    def test_2d_rnn_scanning_in_given_direction(self):
-        actual_result = self.rnn.call(self.x)
+    def get_expected_last_state(self):
+        return self.get_expected_result()[:, -1, -1]
+
+    def assert_rnn_outputs_are_correct(self, output, state):
         expected_result = self.get_expected_result()
-        np.testing.assert_almost_equal(expected_result, actual_result.numpy(), 6)
+        np.testing.assert_almost_equal(expected_result, output.numpy(), 6)
+
+        expected_state = self.get_expected_last_state()
+        np.testing.assert_almost_equal(expected_state, state.numpy(), 6)
+
+    def test_2d_rnn_scanning_in_given_direction(self):
+        output, state = self.rnn.call(self.x)
+        self.assert_rnn_outputs_are_correct(output, state)
 
     def test_2d_rnn_scanning_in_given_direction_using_functor(self):
-        actual_result = self.rnn(self.x)
-        expected_result = self.get_expected_result()
-        np.testing.assert_almost_equal(expected_result, actual_result.numpy(), 6)
+        output, state = self.rnn(self.x)
+        self.assert_rnn_outputs_are_correct(output, state)
 
 
 class RnnMovingSouthWest(RnnMovingSouthEast):
@@ -179,6 +192,9 @@ class RnnMovingSouthWest(RnnMovingSouthEast):
             [11, 9, 5]
         ]).reshape((1, 2, 3, 1))
 
+    def get_expected_last_state(self):
+        return np.array([11]).reshape((1, 1))
+
 
 class RnnMovingNorthEast(RnnMovingSouthEast):
     def get_direction(self):
@@ -190,6 +206,9 @@ class RnnMovingNorthEast(RnnMovingSouthEast):
             [2, 5, 9]
         ]).reshape((1, 2, 3, 1))
 
+    def get_expected_last_state(self):
+        return np.array([16]).reshape((1, 1))
+
 
 class RnnMovingNorthWest(RnnMovingSouthEast):
     def get_direction(self):
@@ -200,3 +219,6 @@ class RnnMovingNorthWest(RnnMovingSouthEast):
             [20, 12, 5],
             [9, 7, 4]
         ]).reshape((1, 2, 3, 1))
+
+    def get_expected_last_state(self):
+        return np.array([20]).reshape((1, 1))

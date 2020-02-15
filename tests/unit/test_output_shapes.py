@@ -49,3 +49,18 @@ class MDRNNOutputShapeTests(TestCase):
         a = mdrnn.call(x)
 
         self.assertEqual((2, 4, 3), a.shape)
+
+    def test_feeding_5_dimensional_rnn_returns_sequences_and_last_state(self):
+        rnn = MDRNN(units=3, input_shape=(None, None, None, None, None, 1),
+                    return_sequences=True, return_state=True)
+
+        shape = (2, 2, 3, 1, 2, 6, 1)
+        x = np.arange(2*2*3*1*2*6).reshape(shape)
+        res = rnn(x)
+        self.assertEqual(2, len(res))
+        sequences, state = res
+
+        expected_sequence_shape = (2, 2, 3, 1, 2, 6, 3)
+        expected_state_shape = (2, 3)
+        self.assertEqual(expected_sequence_shape, sequences.shape)
+        self.assertEqual(expected_state_shape, state.shape)

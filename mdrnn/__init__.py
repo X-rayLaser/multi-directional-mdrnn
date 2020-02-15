@@ -3,11 +3,6 @@ import numpy as np
 import itertools
 
 
-class ManyToOneRNN:
-    def __init__(self, input_dim, output_size, ndims):
-        raise InvalidParamsError()
-
-
 class MDRNN(tf.keras.layers.Layer):
     MAX_INPUT_DIM = 10**10
     MAX_UNITS = MAX_INPUT_DIM
@@ -200,7 +195,9 @@ class MDRNN(tf.keras.layers.Layer):
         return valid_positions
 
     def _prepare_result(self, outputs):
-        last_state = outputs[:, -1]
+        final_position = self.direction.get_final_position()
+        last_state = self._get_batch(outputs, final_position)
+
         if self.return_sequences:
             returned_outputs = outputs
         else:
@@ -385,6 +382,17 @@ class Direction:
             res.append(position)
 
         return res
+
+    def get_final_position(self):
+        position = []
+        for d in self._dirs:
+            if d == 1:
+                position.append(-1)
+            elif d == -1:
+                position.append(0)
+            else:
+                raise Exception('Should not get here')
+        return tuple(position)
 
     def _get_previous_position_along_axis(self, position, axis):
         step = self._dirs[axis]
