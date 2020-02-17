@@ -190,14 +190,14 @@ class Rnn2dTestSetup:
 
     @staticmethod
     def get_expected_result_for_multi_directional_rnn():
-        a = np.array(Rnn2dTestSetup.south_east_output,
-                     Rnn2dTestSetup.south_west_output,
-                     Rnn2dTestSetup.north_east_output,
-                     Rnn2dTestSetup.north_west_output)
+        a = [
+            Rnn2dTestSetup.south_east_output,
+            Rnn2dTestSetup.south_west_output,
+            Rnn2dTestSetup.north_east_output,
+            Rnn2dTestSetup.north_west_output
+         ]
 
-        a = np.concatenate([], axis=3)
-        print(a.shape)
-        return a
+        return np.concatenate(a, axis=3)
 
     def get_expected_last_state(self):
         if self._direction == Direction.south_east():

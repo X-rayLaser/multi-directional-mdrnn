@@ -217,9 +217,5 @@ class DirectionsIterationTests(TestCase):
         self.assertEqual(len(directions), len(unique))
 
 
-# todo 1 dimensional rnn, specify iteration direction
-# todo bidirectional 1 dimensional rnn
-# todo 2 dimensional rnn
 # todo 2 dimensional rnn 4 directional rnn
-# todo n dimensional rnn
 # todo n dimensional rnn multidirectional

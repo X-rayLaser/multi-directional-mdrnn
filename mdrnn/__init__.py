@@ -211,17 +211,17 @@ class MDRNN(tf.keras.layers.Layer):
 class MultiDirectional(tf.keras.layers.Layer):
     def __init__(self, rnn, **kwargs):
         super().__init__(**kwargs)
-        self._forward_rnn = rnn.spawn(direction=Direction(1))
-        self._backward_rnn = rnn.spawn(direction=Direction(-1))
+
+        directions = Direction.get_all_directions(rnn.ndims)
+        self._rnns = [rnn.spawn(direction) for direction in directions]
 
     def build(self, input_shape):
         pass
 
     def call(self, inputs, **kwargs):
-        a_forward = self._forward_rnn.call(inputs, **kwargs)
-        a_backward = self._backward_rnn.call(inputs, **kwargs)
-
-        return tf.concat([a_forward, a_backward], axis=2)
+        activation_list = [rnn.call(inputs, **kwargs) for rnn in self._rnns]
+        last_axis = len(inputs.shape) - 1
+        return tf.concat(activation_list, axis=last_axis)
 
 
 class MultiDimensionalGrid:
