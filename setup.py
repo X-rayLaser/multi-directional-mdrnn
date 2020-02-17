@@ -28,7 +28,7 @@ setuptools.setup(
     packages=packages,
     install_requires=[
         'numpy',
-        'tensorflow'
+        'tensorflow>=2'
     ],
     classifiers=[
         "Intended Audience :: Developers",

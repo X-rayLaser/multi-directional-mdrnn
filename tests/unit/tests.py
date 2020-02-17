@@ -187,6 +187,36 @@ class SouthEastDirection(NorthWestDirection):
         return [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]
 
 
+class DirectionsIterationTests(TestCase):
+    def test_getting_2_directions_for_1_dimensional_space(self):
+        directions = Direction.get_all_directions(ndims=1)
+        self.assertEqual([Direction(1), Direction(-1)], directions)
+
+    def test_getting_4_directions_for_2_dimensional_space(self):
+        directions = Direction.get_all_directions(ndims=2)
+        expected = [Direction(1, 1), Direction(1, -1), Direction(-1, 1), Direction(-1, -1)]
+        self.assertEqual(expected, directions)
+
+    def test_getting_8_directions_for_3_dimensional_space(self):
+        directions = Direction.get_all_directions(ndims=3)
+        expected = [Direction(1, 1, 1), Direction(1, 1, -1),
+                    Direction(1, -1, 1), Direction(1, -1, -1),
+                    Direction(-1, 1, 1), Direction(-1, 1, -1),
+                    Direction(-1, -1, 1), Direction(-1, -1, -1)]
+        self.assertEqual(expected, directions)
+
+    def test_getting_2_to_the_n_directions_for_n_dimensional_space(self):
+        n = 5
+        directions = Direction.get_all_directions(ndims=n)
+        self.assertEqual(2**n, len(directions))
+
+    def test_no_duplicate_directions(self):
+        n = 7
+        directions = Direction.get_all_directions(ndims=n)
+        unique = set(directions)
+        self.assertEqual(len(directions), len(unique))
+
+
 # todo 1 dimensional rnn, specify iteration direction
 # todo bidirectional 1 dimensional rnn
 # todo 2 dimensional rnn

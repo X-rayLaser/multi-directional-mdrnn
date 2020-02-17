@@ -351,6 +351,34 @@ class InvalidPositionError(Exception):
 
 
 class Direction:
+    @staticmethod
+    def south_east():
+        return Direction(1, 1)
+
+    @staticmethod
+    def south_west():
+        return Direction(1, -1)
+
+    @staticmethod
+    def north_east():
+        return Direction(-1, 1)
+
+    @staticmethod
+    def north_west():
+        return Direction(-1, -1)
+
+    @staticmethod
+    def get_all_directions(ndims):
+        direction_options = [1, -1]
+        iterables = [direction_options] * ndims
+        iterators = itertools.product(*iterables)
+
+        directions = []
+
+        for option in iterators:
+            directions.append(Direction(*option))
+        return directions
+
     def __init__(self, *directions):
         self._dirs = list(directions)
         for d in self._dirs:
@@ -397,6 +425,16 @@ class Direction:
     def _get_previous_position_along_axis(self, position, axis):
         step = self._dirs[axis]
         return position[:axis] + (position[axis] - step,) + position[axis + 1:]
+
+    def __eq__(self, other):
+        return self._dirs == other._dirs
+
+    def __hash__(self):
+        return hash(repr(self))
+
+    def __repr__(self):
+        params_string = ','.join(map(str, self._dirs))
+        return 'Direction ({})'.format(params_string)
 
 
 class InvalidParamsError(Exception):
