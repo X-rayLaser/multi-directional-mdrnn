@@ -69,6 +69,7 @@ class MDRNN(tf.keras.layers.Layer):
                      bias_initializer=self._bias_initializer,
                      activation=self.activation,
                      return_sequences=self.return_sequences,
+                     return_state=self.return_state,
                      direction=direction)
 
     def _validate_direction(self, direction, ndims):
@@ -204,7 +205,7 @@ class MDRNN(tf.keras.layers.Layer):
             returned_outputs = last_state
 
         if self.return_state:
-            return returned_outputs, last_state
+            return [returned_outputs] + [last_state]
         return returned_outputs
 
 
@@ -212,6 +213,7 @@ class MultiDirectional(tf.keras.layers.Layer):
     def __init__(self, rnn, **kwargs):
         super().__init__(**kwargs)
 
+        self._original_rnn = rnn
         directions = Direction.get_all_directions(rnn.ndims)
         self._rnns = [rnn.spawn(direction) for direction in directions]
 
@@ -219,9 +221,29 @@ class MultiDirectional(tf.keras.layers.Layer):
         pass
 
     def call(self, inputs, **kwargs):
-        activation_list = [rnn.call(inputs, **kwargs) for rnn in self._rnns]
-        last_axis = len(inputs.shape) - 1
-        return tf.concat(activation_list, axis=last_axis)
+        if self._original_rnn.return_sequences:
+            num_output_dimensions = len(inputs.shape)
+        else:
+            num_output_dimensions = len(inputs.shape) - 1
+
+        results_list = [rnn.call(inputs, **kwargs) for rnn in self._rnns]
+        if not self._original_rnn.return_state:
+            last_axis = num_output_dimensions - 1
+            return tf.concat(results_list, axis=last_axis)
+        else:
+            outputs_list = []
+            states_list = []
+
+            for result in results_list:
+                activations = result[0]
+                states = result[1]
+                outputs_list.append(activations)
+                states_list.append(states)
+
+            outputs_last_axis = num_output_dimensions - 1
+            outputs = tf.concat(outputs_list, axis=outputs_last_axis)
+
+            return [outputs] + states_list
 
 
 class MultiDimensionalGrid:

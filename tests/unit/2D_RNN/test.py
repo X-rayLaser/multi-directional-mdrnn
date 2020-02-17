@@ -3,6 +3,7 @@ import numpy as np
 from mdrnn import MDRNN, Direction
 from tensorflow.keras import initializers
 import tensorflow as tf
+from mdrnn import MultiDirectional
 
 
 class Degenerate2DInputTests(TestCase):
@@ -160,6 +161,11 @@ class Rnn2dTestSetup:
         [9, 7, 4]
     ]).reshape((1, 2, 3, 1))
 
+    south_east_state = np.array([7]).reshape((1, 1))
+    south_west_state = np.array([11]).reshape((1, 1))
+    north_east_state = np.array([16]).reshape((1, 1))
+    north_west_state = np.array([20]).reshape((1, 1))
+
     def __init__(self, direction):
         self._direction = direction
 
@@ -190,24 +196,30 @@ class Rnn2dTestSetup:
 
     @staticmethod
     def get_expected_result_for_multi_directional_rnn():
-        a = [
+        outputs = [
             Rnn2dTestSetup.south_east_output,
             Rnn2dTestSetup.south_west_output,
             Rnn2dTestSetup.north_east_output,
             Rnn2dTestSetup.north_west_output
          ]
 
-        return np.concatenate(a, axis=3)
+        states = [
+            Rnn2dTestSetup.south_east_state,
+            Rnn2dTestSetup.south_west_state,
+            Rnn2dTestSetup.north_east_state,
+            Rnn2dTestSetup.north_west_state
+        ]
+        return [np.concatenate(outputs, axis=3)] + states
 
     def get_expected_last_state(self):
         if self._direction == Direction.south_east():
-            return np.array([7]).reshape((1, 1))
+            return self.south_east_state
         elif self._direction == Direction.south_west():
-            return np.array([11]).reshape((1, 1))
+            return self.south_west_state
         elif self._direction == Direction.north_east():
-            return np.array([16]).reshape((1, 1))
+            return self.north_east_state
         elif self._direction == Direction.north_west():
-            return np.array([20]).reshape((1, 1))
+            return self.north_west_state
 
 
 class RnnMovingSouthEast(TestCase):
@@ -251,14 +263,41 @@ class RnnMovingNorthWest(RnnMovingSouthEast):
 
 
 class MultiDirectional2DrnnTests(TestCase):
-    def test(self):
+    def test_returns_list_of_correct_length(self):
         rnn_setup = Rnn2dTestSetup(direction=Direction.south_east())
         rnn = rnn_setup.make_rnn()
-        from mdrnn import MultiDirectional
+
+        rnn = MultiDirectional(rnn)
+        x = rnn_setup.make_input()
+        actual = rnn.call(x)
+
+        # 1 element for output of RNN and 4 elements for states, 1 state per each direction
+        self.assertEqual(5, len(actual))
+
+    def test_output(self):
+        rnn_setup = Rnn2dTestSetup(direction=Direction.south_east())
+        rnn = rnn_setup.make_rnn()
 
         rnn = MultiDirectional(rnn)
         x = rnn_setup.make_input()
         expected = rnn_setup.get_expected_result_for_multi_directional_rnn()
         actual = rnn.call(x)
 
-        self.assertEqual(expected.shape, actual.shape)
+        actual_output = actual[0]
+        expected_output = expected[0]
+        np.testing.assert_almost_equal(expected_output, actual_output.numpy(), 6)
+
+    def test_states(self):
+        rnn_setup = Rnn2dTestSetup(direction=Direction.south_east())
+        rnn = rnn_setup.make_rnn()
+
+        rnn = MultiDirectional(rnn)
+        x = rnn_setup.make_input()
+        expected = rnn_setup.get_expected_result_for_multi_directional_rnn()
+        actual = rnn.call(x)
+
+        num_elements = 5
+        for i in range(num_elements):
+            actual_output = actual[i]
+            expected_output = expected[i]
+            np.testing.assert_almost_equal(expected_output, actual_output.numpy(), 6)
