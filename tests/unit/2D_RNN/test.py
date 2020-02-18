@@ -262,7 +262,7 @@ class RnnMovingNorthWest(RnnMovingSouthEast):
         return Direction(-1, -1)
 
 
-class MultiDirectional2DrnnTests(TestCase):
+class OutputOfMultiDirectional2DrnnTests(TestCase):
     def test_returns_list_of_correct_length(self):
         rnn_setup = Rnn2dTestSetup(direction=Direction.south_east())
         rnn = rnn_setup.make_rnn()
@@ -274,20 +274,7 @@ class MultiDirectional2DrnnTests(TestCase):
         # 1 element for output of RNN and 4 elements for states, 1 state per each direction
         self.assertEqual(5, len(actual))
 
-    def test_output(self):
-        rnn_setup = Rnn2dTestSetup(direction=Direction.south_east())
-        rnn = rnn_setup.make_rnn()
-
-        rnn = MultiDirectional(rnn)
-        x = rnn_setup.make_input()
-        expected = rnn_setup.get_expected_result_for_multi_directional_rnn()
-        actual = rnn.call(x)
-
-        actual_output = actual[0]
-        expected_output = expected[0]
-        np.testing.assert_almost_equal(expected_output, actual_output.numpy(), 6)
-
-    def test_states(self):
+    def test_results(self):
         rnn_setup = Rnn2dTestSetup(direction=Direction.south_east())
         rnn = rnn_setup.make_rnn()
 
@@ -301,3 +288,36 @@ class MultiDirectional2DrnnTests(TestCase):
             actual_output = actual[i]
             expected_output = expected[i]
             np.testing.assert_almost_equal(expected_output, actual_output.numpy(), 6)
+
+
+class ShapeOfMultiDirectional2DrnnTests(TestCase):
+    def setUp(self):
+        self.x = np.zeros((3, 4, 2, 5))
+
+    def make_rnn(self, return_sequences, return_state):
+        rnn = MDRNN(units=6, input_shape=(None, None, 5),
+                    return_sequences=return_sequences,
+                    return_state=return_state,
+                    activation='tanh')
+
+        return MultiDirectional(rnn)
+
+    def test_when_return_sequences_and_return_states_is_false(self):
+        rnn = self.make_rnn(return_sequences=False, return_state=False)
+        res = rnn(self.x)
+        self.assertEqual((3, 24), res.shape)
+
+    def test_when_return_sequences_is_false_but_return_states_is_true(self):
+        rnn = self.make_rnn(return_sequences=False, return_state=True)
+        res = rnn(self.x)
+        output, south_east, south_west, north_east, north_west = res
+        self.assertEqual((3, 24), output.shape)
+        self.assertEqual((3, 6), south_east.shape)
+        self.assertEqual((3, 6), south_west.shape)
+        self.assertEqual((3, 6), north_east.shape)
+        self.assertEqual((3, 6), north_west.shape)
+
+    def test_when_return_sequences_is_true_but_return_states_is_false(self):
+        rnn = self.make_rnn(return_sequences=True, return_state=False)
+        output = rnn(self.x)
+        self.assertEqual((3, 4, 2, 24), output.shape)

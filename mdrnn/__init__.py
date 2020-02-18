@@ -224,9 +224,10 @@ class MultiDirectional(tf.keras.layers.Layer):
         if self._original_rnn.return_sequences:
             num_output_dimensions = len(inputs.shape)
         else:
-            num_output_dimensions = len(inputs.shape) - 1
+            num_output_dimensions = 2
 
         results_list = [rnn.call(inputs, **kwargs) for rnn in self._rnns]
+
         if not self._original_rnn.return_state:
             last_axis = num_output_dimensions - 1
             return tf.concat(results_list, axis=last_axis)
