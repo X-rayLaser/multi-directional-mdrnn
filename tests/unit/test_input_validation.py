@@ -2,7 +2,7 @@ from unittest.case import TestCase
 
 import numpy as np
 
-from mdrnn import InputRankMismatchError, MDRNN
+from mdrnn import MDRNN, InputRankMismatchError
 
 
 class MDRNNInputValidationTests(TestCase):

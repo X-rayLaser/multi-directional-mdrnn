@@ -1,6 +1,6 @@
 from unittest.case import TestCase
 
-from mdrnn import InvalidParamsError, MDRNN
+from mdrnn import MDRNN, InvalidParamsError
 
 
 class MDRNNInitializationTests(TestCase):

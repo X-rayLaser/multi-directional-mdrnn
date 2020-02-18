@@ -46,8 +46,6 @@ class ForwardBackwardProcessingTests(TestCase):
         np.testing.assert_almost_equal(expected_result, a.numpy(), 8)
 
     def test_bidirectional_rnn_returns_result_with_correct_shape(self):
-        from mdrnn import MultiDirectional
-
         rnn = self.create_mdrnn(direction=Direction(1))
 
         rnn = MultiDirectional(rnn)

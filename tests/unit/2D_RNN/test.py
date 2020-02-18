@@ -1,9 +1,9 @@
 from unittest import TestCase
 import numpy as np
-from mdrnn import MDRNN, Direction
+from mdrnn import MDRNN, MultiDirectional, Direction
+
 from tensorflow.keras import initializers
 import tensorflow as tf
-from mdrnn import MultiDirectional
 
 
 class Degenerate2DInputTests(TestCase):

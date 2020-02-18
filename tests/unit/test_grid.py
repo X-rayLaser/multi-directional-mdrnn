@@ -1,8 +1,8 @@
 from unittest import TestCase
-from mdrnn import MultiDimensionalGrid, TensorGrid, PositionOutOfBoundsError, InvalidPositionError
+from mdrnn import MultiDimensionalGrid, TensorGrid
+from mdrnn import PositionOutOfBoundsError, InvalidPositionError
 import tensorflow as tf
 import numpy as np
-import itertools
 
 
 class ExceptionsTests(TestCase):

@@ -1,5 +1,5 @@
 from unittest import TestCase
-from mdrnn import MDRNN, InvalidParamsError, Direction
+from mdrnn import MDRNN, Direction, InvalidParamsError
 
 
 class DirectionValidationTestCase(TestCase):
