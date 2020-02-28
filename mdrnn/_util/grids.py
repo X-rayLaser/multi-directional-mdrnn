@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 
-class MultiDimensionalGrid:
+class MultiDimensionalGrid(object):
     def __init__(self, grid_shape):
         self._shape = grid_shape
         self._grid = np.zeros(grid_shape).tolist()
@@ -57,7 +57,7 @@ class MultiDimensionalGrid:
 
 class TensorGrid(MultiDimensionalGrid):
     def __init__(self, grid_shape, tensor_shape):
-        super().__init__(grid_shape)
+        super(TensorGrid, self).__init__(grid_shape)
 
         for position in self.get_positions():
             if tensor_shape[0] is None:
@@ -111,7 +111,7 @@ class TensorGrid(MultiDimensionalGrid):
 
 class NullGrid(MultiDimensionalGrid):
     def __init__(self, tensor):
-        super().__init__(tuple())
+        super(NullGrid, self).__init__(tuple())
         self._tensor = tensor
 
     @property

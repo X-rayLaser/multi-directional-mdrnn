@@ -5,7 +5,7 @@ from mdrnn._util.directions import Direction
 
 class MultiDirectional(tf.keras.layers.Layer):
     def __init__(self, rnn, **kwargs):
-        super().__init__(**kwargs)
+        super(MultiDirectional, self).__init__(**kwargs)
 
         self._original_rnn = rnn
         directions = Direction.get_all_directions(rnn.ndims)

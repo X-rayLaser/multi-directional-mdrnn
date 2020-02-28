@@ -15,7 +15,7 @@ class MDRNN(tf.keras.layers.Layer):
                  return_sequences=False, return_state=False, direction=None, **kwargs):
         if input_shape:
             kwargs.update(dict(input_shape=input_shape))
-        super().__init__(**kwargs)
+        super(MDRNN, self).__init__(**kwargs)
 
         input_dim = input_shape[-1]
         ndims = len(input_shape[:-1])

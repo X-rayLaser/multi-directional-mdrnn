@@ -4,3 +4,4 @@ venv/
 build/
 dist/
 mdrnn.egg-info/
+\.tox/
