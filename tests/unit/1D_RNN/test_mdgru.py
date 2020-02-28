@@ -1,6 +1,5 @@
 from unittest import TestCase
 from tensorflow.keras import initializers
-from mdrnn import MDGRU
 import tensorflow as tf
 import numpy as np
 

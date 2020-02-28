@@ -3,5 +3,3 @@ from ._layers.multi_directional import MultiDirectional
 from ._util.directions import Direction
 from ._util.grids import MultiDimensionalGrid, TensorGrid, NullGrid
 from ._util.grids import PositionOutOfBoundsError, InvalidPositionError
-
-from ._layers.gru import MDGRU
