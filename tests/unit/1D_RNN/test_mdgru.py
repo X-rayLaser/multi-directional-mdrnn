@@ -18,10 +18,3 @@ class UnidirectionalOneDimensionalGRUTests(TestCase):
         rnn = MDGRU(**kwargs)
         keras_rnn = tf.keras.layers.GRU(reset_after=True, implementation=1, **kwargs)
         return rnn, keras_rnn
-
-    def test(self):
-        return
-        rnn, keras_rnn = self.make_rnn(return_sequences=False, return_state=False)
-
-        x = np.zeros((1, 1, 5))
-        np.testing.assert_almost_equal(keras_rnn(x).numpy(), rnn(x).numpy())
