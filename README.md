@@ -84,7 +84,6 @@ model.fit(x, y, epochs=1)
 # Requirements
 
 - TensorFlow version >= 2.0
-- Python version >= 3.6.8
 
 # References
 
