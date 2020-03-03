@@ -13,7 +13,7 @@ with open(version_path, 'r') as f:
 with open("README.md", "r") as f:
     long_description = f.read()
 
-packages = ['mdrnn']
+packages = ['mdrnn', 'mdrnn._layers', 'mdrnn._util']
 
 setuptools.setup(
     name=about['__name__'],
