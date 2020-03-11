@@ -1,13 +1,30 @@
 from tensorflow.keras.layers import Layer
 import tensorflow as tf
 
+from mdrnn._layers.simple_mdrnn import InputRankMismatchError, InvalidParamsError
+
 
 class MDGRU(Layer):
+    MAX_INPUT_DIM = 10**10
+    MAX_UNITS = MAX_INPUT_DIM
+    MAX_NDIMS = 10**3
+
     def __init__(self, units, input_shape, kernel_initializer=None,
                  recurrent_initializer=None, bias_initializer=None, activation='tanh',
                  recurrent_activation='sigmoid',
                  return_sequences=False, return_state=False, **kwargs):
-        super().__init__(**kwargs)
+        super(MDGRU, self).__init__(**kwargs)
+
+        input_dim = input_shape[-1]
+        ndims = len(input_shape[:-1])
+
+        if (input_dim <= 0 or input_dim >= self.MAX_INPUT_DIM
+                or units <= 0 or units >= self.MAX_UNITS
+                or ndims <= 0 or ndims >= self.MAX_NDIMS):
+            raise InvalidParamsError()
+
+        self.input_dim = input_dim
+        self.ndims = ndims
         self.units = units
 
         input_size = input_shape[-1]
@@ -41,6 +58,8 @@ class MDGRU(Layer):
         self.recurrent_activation = tf.keras.activations.get(recurrent_activation)
 
     def call(self, inputs, initial_state=None, **kwargs):
+        self._validate_input(inputs)
+
         a = tf.zeros((1, self.units))
         X = tf.constant(inputs, dtype=tf.float32)
 
@@ -59,3 +78,9 @@ class MDGRU(Layer):
 
             a = z * a + (1 - z) * h
         return a
+
+    def _validate_input(self, inp):
+        expected_rank = 1 + self.ndims + 1
+        if (len(inp.shape) != expected_rank or 0 in inp.shape
+                or inp.shape[-1] != self.input_dim):
+            raise InputRankMismatchError(inp.shape)
