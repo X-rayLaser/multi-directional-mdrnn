@@ -2,6 +2,7 @@ from tensorflow.keras.layers import Layer
 import tensorflow as tf
 
 from mdrnn._layers.simple_mdrnn import InputRankMismatchError, InvalidParamsError
+from mdrnn._util.directions import Direction
 
 
 class MDGRU(Layer):
@@ -12,7 +13,7 @@ class MDGRU(Layer):
     def __init__(self, units, input_shape, kernel_initializer=None,
                  recurrent_initializer=None, bias_initializer=None, activation='tanh',
                  recurrent_activation='sigmoid',
-                 return_sequences=False, return_state=False, **kwargs):
+                 return_sequences=False, return_state=False, direction=None, **kwargs):
         super(MDGRU, self).__init__(**kwargs)
 
         input_dim = input_shape[-1]
@@ -23,9 +24,14 @@ class MDGRU(Layer):
                 or ndims <= 0 or ndims >= self.MAX_NDIMS):
             raise InvalidParamsError()
 
+        if direction is None:
+            args = [1] * ndims
+            direction = Direction(*args)
+
         self.input_dim = input_dim
         self.ndims = ndims
         self.units = units
+        self.direction = direction
 
         input_size = input_shape[-1]
         self.kernel = self.add_weight(
@@ -65,7 +71,8 @@ class MDGRU(Layer):
 
         Tx = X.shape[1]
 
-        for t in range(Tx):
+        for position in self.direction.iterate_over_positions([Tx]):
+            t = position[0]
             x = X[:, t, :]
             term = tf.matmul(x, self.Wz) + self.Bz
             z = self.recurrent_activation(tf.matmul(a, self.Uz) + term)
