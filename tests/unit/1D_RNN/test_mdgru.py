@@ -31,46 +31,57 @@ class UnidirectionalOneDimensionalGRUTests(TestCase):
                                         kernel_initializer=kernel_initializer,
                                         recurrent_initializer=recurrent_initializer,
                                         bias_initializer=bias_initializer,
+                                        return_sequences=return_sequences,
                                         reset_after=False,
+                                        return_state=return_state,
                                         go_backwards=go_backwards)
         return rnn, keras_rnn
 
-    def test_outputs_on_single_step_sequence(self):
-        rnn, keras_rnn = self.make_rnn(return_sequences=False, return_state=False)
+    def assert_rnn_outputs_equal(self, x, **rnn_kwargs):
+        rnn, keras_rnn = self.make_rnn(**rnn_kwargs)
 
-        self.x = tf.constant(np.random.rand(3, 1, 5), dtype=tf.float32)
-
-        rnn_result = rnn(self.x)
-
-        keras_rnn_result = keras_rnn(self.x)
+        rnn_result = rnn(x)
+        keras_rnn_result = keras_rnn(x)
 
         self.assertEqual(len(rnn_result), len(keras_rnn_result))
-
         np.testing.assert_almost_equal(rnn_result.numpy(), keras_rnn_result.numpy(), 6)
+
+    def assert_output_tuples_equal(self, x, **rnn_kwargs):
+        rnn, keras_rnn = self.make_rnn(**rnn_kwargs)
+
+        rnn_result = rnn(x)
+        keras_rnn_result = keras_rnn(x)
+
+        self.assertEqual(len(rnn_result), 2)
+        self.assertEqual(len(keras_rnn_result), 2)
+
+        np.testing.assert_almost_equal(rnn_result[0].numpy(), keras_rnn_result[0].numpy(), 6)
+        np.testing.assert_almost_equal(rnn_result[1].numpy(), keras_rnn_result[1].numpy(), 6)
+
+    def test_outputs_on_single_step_sequence(self):
+        x = tf.constant(np.random.rand(3, 1, 5), dtype=tf.float32)
+        self.assert_rnn_outputs_equal(x, return_sequences=False, return_state=False)
 
     def test_outputs_on_many_steps_sequence(self):
-        rnn, keras_rnn = self.make_rnn(return_sequences=False, return_state=False)
-
-        self.x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
-
-        rnn_result = rnn(self.x)
-
-        keras_rnn_result = keras_rnn(self.x)
-
-        self.assertEqual(len(rnn_result), len(keras_rnn_result))
-
-        np.testing.assert_almost_equal(rnn_result.numpy(), keras_rnn_result.numpy(), 6)
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+        self.assert_rnn_outputs_equal(x, return_sequences=False, return_state=False)
 
     def test_processing_sequence_backwards(self):
-        rnn, keras_rnn = self.make_rnn(return_sequences=False, return_state=False, go_backwards=True)
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+        self.assert_rnn_outputs_equal(x, return_sequences=False, return_state=False, go_backwards=True)
 
-        self.x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+    def test_with_flag_return_sequences(self):
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+        self.assert_rnn_outputs_equal(x, return_sequences=True, return_state=False)
 
-        rnn_result = rnn(self.x)
+    def test_with_flag_return_state(self):
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+        self.assert_output_tuples_equal(x, return_sequences=False, return_state=True)
 
-        keras_rnn_result = keras_rnn(self.x)
+    def test_with_both_flags_return_sequences_and_return_state(self):
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+        self.assert_output_tuples_equal(x, return_sequences=True, return_state=True)
 
-        self.assertEqual(len(rnn_result), len(keras_rnn_result))
-
-        np.testing.assert_almost_equal(rnn_result.numpy(), keras_rnn_result.numpy(), 6)
-
+    def test_with_flags_return_sequences_and_return_state_and_go_backwards(self):
+        x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
+        self.assert_output_tuples_equal(x, return_sequences=True, return_state=True, go_backwards=True)

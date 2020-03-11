@@ -31,6 +31,8 @@ class MDGRU(Layer):
         self.input_dim = input_dim
         self.ndims = ndims
         self.units = units
+        self.return_sequences = return_sequences
+        self.return_state = return_state
         self.direction = direction
 
         input_size = input_shape[-1]
@@ -71,6 +73,7 @@ class MDGRU(Layer):
 
         Tx = X.shape[1]
 
+        output_sequences = []
         for position in self.direction.iterate_over_positions([Tx]):
             t = position[0]
             x = X[:, t, :]
@@ -84,7 +87,19 @@ class MDGRU(Layer):
             h = self.activation(tf.matmul(r * a, self.Uh) + term)
 
             a = z * a + (1 - z) * h
-        return a
+            output_sequences.append(a)
+
+        outputs = tf.stack(output_sequences, axis=1)
+        last_state = a
+
+        if self.return_sequences:
+            returned_outputs = outputs
+        else:
+            returned_outputs = last_state
+
+        if self.return_state:
+            return [returned_outputs] + [last_state]
+        return returned_outputs
 
     def _validate_input(self, inp):
         expected_rank = 1 + self.ndims + 1
