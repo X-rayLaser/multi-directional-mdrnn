@@ -88,7 +88,7 @@ class UniDirectionalRnnTests(TestCase):
     def setUp(self):
         self.x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
 
-    def make_rnns(self, return_sequences, return_state):
+    def make_rnns(self, return_sequences, return_state, go_backwards=False):
         seed = 1
         kwargs = dict(units=3, input_shape=(None, 5),
                       kernel_initializer=initializers.glorot_uniform(seed),
@@ -98,10 +98,21 @@ class UniDirectionalRnnTests(TestCase):
                       return_state=return_state,
                       activation='relu'
                       )
-        rnn = MDRNN(**kwargs)
 
-        keras_rnn = tf.keras.layers.SimpleRNN(**kwargs)
+        mdrnn_kwargs = dict(kwargs)
+        if go_backwards:
+            mdrnn_kwargs.update(dict(direction=Direction(-1)))
+        rnn = MDRNN(**mdrnn_kwargs)
+
+        keras_rnn_kwargs = dict(kwargs)
+        keras_rnn_kwargs.update(dict(go_backwards=go_backwards))
+        keras_rnn = tf.keras.layers.SimpleRNN(**keras_rnn_kwargs)
         return rnn, keras_rnn
+
+    def test_output_when_go_backwards_and_return_sequences_are_true(self):
+        rnn, keras_rnn = self.make_rnns(return_sequences=True, return_state=False,
+                                        go_backwards=True)
+        np.testing.assert_almost_equal(rnn(self.x).numpy(), keras_rnn(self.x).numpy(), 6)
 
     def test_when_return_sequences_and_return_state_are_false(self):
         rnn, keras_rnn = self.make_rnns(return_sequences=False, return_state=False)
@@ -109,7 +120,6 @@ class UniDirectionalRnnTests(TestCase):
 
     def test_when_return_sequences_is_true(self):
         rnn, keras_rnn = self.make_rnns(return_sequences=True, return_state=False)
-
         np.testing.assert_almost_equal(rnn(self.x).numpy(), keras_rnn(self.x).numpy(), 6)
 
     def test_when_return_state_is_true(self):

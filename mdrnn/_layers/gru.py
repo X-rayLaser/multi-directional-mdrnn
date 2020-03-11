@@ -3,6 +3,7 @@ import tensorflow as tf
 
 from mdrnn._layers.simple_mdrnn import InputRankMismatchError, InvalidParamsError
 from mdrnn._util.directions import Direction
+from mdrnn._util.grids import TensorGrid
 
 
 class MDGRU(Layer):
@@ -28,12 +29,16 @@ class MDGRU(Layer):
             args = [1] * ndims
             direction = Direction(*args)
 
+        self._input_shape = input_shape
         self.input_dim = input_dim
         self.ndims = ndims
         self.units = units
         self.return_sequences = return_sequences
         self.return_state = return_state
         self.direction = direction
+        self._kernel_initializer = kernel_initializer
+        self._recurrent_initializer = recurrent_initializer
+        self._bias_initializer = bias_initializer
 
         input_size = input_shape[-1]
         self.kernel = self.add_weight(
@@ -65,6 +70,17 @@ class MDGRU(Layer):
         self.activation = tf.keras.activations.get(activation)
         self.recurrent_activation = tf.keras.activations.get(recurrent_activation)
 
+    def spawn(self, direction):
+        return MDGRU(units=self.units, input_shape=self._input_shape,
+                     kernel_initializer=self._kernel_initializer,
+                     recurrent_initializer=self._recurrent_initializer,
+                     bias_initializer=self._bias_initializer,
+                     activation=self.activation,
+                     recurrent_activation=self.recurrent_activation,
+                     return_sequences=self.return_sequences,
+                     return_state=self.return_state,
+                     direction=direction)
+
     def call(self, inputs, initial_state=None, **kwargs):
         self._validate_input(inputs)
 
@@ -72,8 +88,10 @@ class MDGRU(Layer):
         X = tf.constant(inputs, dtype=tf.float32)
 
         Tx = X.shape[1]
+        tensor_shape = (inputs.shape[0], self.input_dim)
 
-        output_sequences = []
+        output_grid = TensorGrid(grid_shape=(Tx, ), tensor_shape=tensor_shape)
+
         for position in self.direction.iterate_over_positions([Tx]):
             t = position[0]
             x = X[:, t, :]
@@ -87,9 +105,13 @@ class MDGRU(Layer):
             h = self.activation(tf.matmul(r * a, self.Uh) + term)
 
             a = z * a + (1 - z) * h
-            output_sequences.append(a)
+            output_grid.put_item(position, a)
+            # todo: actually, this is only correct when you need to use MultiDirection wrapper
+            # otherwise elements should be appended to output one at a time
+            # e.g. for 1D case going backwards, [1,2,3], outputs: [output for 3, output for 2, output for 1]
 
-        outputs = tf.stack(output_sequences, axis=1)
+        outputs = output_grid.to_tensor()
+
         last_state = a
 
         if self.return_sequences:
