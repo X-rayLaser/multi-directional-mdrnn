@@ -106,9 +106,6 @@ class MDGRU(Layer):
 
             a = z * a + (1 - z) * h
             output_grid.put_item(position, a)
-            # todo: actually, this is only correct when you need to use MultiDirection wrapper
-            # otherwise elements should be appended to output one at a time
-            # e.g. for 1D case going backwards, [1,2,3], outputs: [output for 3, output for 2, output for 1]
 
         outputs = output_grid.to_tensor()
 

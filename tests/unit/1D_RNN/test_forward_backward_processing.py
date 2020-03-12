@@ -112,7 +112,14 @@ class UniDirectionalRnnTests(TestCase):
     def test_output_when_go_backwards_and_return_sequences_are_true(self):
         rnn, keras_rnn = self.make_rnns(return_sequences=True, return_state=False,
                                         go_backwards=True)
-        np.testing.assert_almost_equal(rnn(self.x).numpy(), keras_rnn(self.x).numpy(), 6)
+
+        rnn_result = self.reverse_sequences(rnn(self.x).numpy())
+        np.testing.assert_almost_equal(rnn_result, keras_rnn(self.x).numpy(), 6)
+
+    def reverse_sequences(self, a):
+        size = a.shape[1]
+        indices = np.arange(size - 1, -1, -1)
+        return a[:, indices, :]
 
     def test_when_return_sequences_and_return_state_are_false(self):
         rnn, keras_rnn = self.make_rnns(return_sequences=False, return_state=False)

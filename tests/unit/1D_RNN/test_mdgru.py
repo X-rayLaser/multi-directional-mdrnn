@@ -45,10 +45,11 @@ class UnidirectionalOneDimensionalGRUTests(TestCase):
         rnn, keras_rnn = self.make_rnns(**rnn_kwargs)
 
         rnn_result = rnn(x)
+        rnn_result_array = rnn_result.numpy()
         keras_rnn_result = keras_rnn(x)
 
-        self.assertEqual(len(rnn_result), len(keras_rnn_result))
-        np.testing.assert_almost_equal(rnn_result.numpy(), keras_rnn_result.numpy(), 6)
+        rnn_result_array = self.reverse_sequences_if_go_backwards_is_on(rnn_kwargs, rnn_result_array)
+        np.testing.assert_almost_equal(rnn_result_array, keras_rnn_result.numpy(), 6)
 
     def assert_output_tuples_equal(self, x, **rnn_kwargs):
         rnn, keras_rnn = self.make_rnns(**rnn_kwargs)
@@ -59,8 +60,19 @@ class UnidirectionalOneDimensionalGRUTests(TestCase):
         self.assertEqual(len(rnn_result), 2)
         self.assertEqual(len(keras_rnn_result), 2)
 
-        np.testing.assert_almost_equal(rnn_result[0].numpy(), keras_rnn_result[0].numpy(), 6)
+        rnn_output = rnn_result[0].numpy()
+        keras_rnn_output = keras_rnn_result[0].numpy()
+
+        rnn_output = self.reverse_sequences_if_go_backwards_is_on(rnn_kwargs, rnn_output)
+
+        np.testing.assert_almost_equal(rnn_output, keras_rnn_output, 6)
         np.testing.assert_almost_equal(rnn_result[1].numpy(), keras_rnn_result[1].numpy(), 6)
+
+    def reverse_sequences_if_go_backwards_is_on(self, rnn_kwargs, rnn_result_array):
+        if 'go_backwards' in rnn_kwargs and 'return_sequences' in rnn_kwargs:
+            if rnn_kwargs['go_backwards'] is True and rnn_kwargs['return_sequences'] is True:
+                rnn_result_array = self.reverse_sequences(rnn_result_array)
+        return rnn_result_array
 
     def test_outputs_on_single_step_sequence(self):
         x = tf.constant(np.random.rand(3, 1, 5), dtype=tf.float32)
@@ -77,6 +89,11 @@ class UnidirectionalOneDimensionalGRUTests(TestCase):
     def test_with_flags_return_sequences_and_go_backwards(self):
         x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
         self.assert_rnn_outputs_equal(x, return_sequences=True, return_state=False, go_backwards=True)
+
+    def reverse_sequences(self, a):
+        size = a.shape[1]
+        indices = np.arange(size - 1, -1, -1)
+        return a[:, indices, :]
 
     def test_with_flag_return_sequences(self):
         x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
