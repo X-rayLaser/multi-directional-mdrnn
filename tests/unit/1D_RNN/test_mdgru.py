@@ -37,7 +37,7 @@ def make_rnns(return_sequences, return_state, go_backwards=False):
         return rnn, keras_rnn
 
 
-class SimpleTestTemplate:
+class SimpleTestTemplate(object):
     def __init__(self, return_sequences=False):
         self.return_sequences = return_sequences
         self.return_state = False
@@ -69,7 +69,7 @@ class SimpleTestTemplate:
 
 class ReturnStateTemplate(SimpleTestTemplate):
     def __init__(self, return_sequences=False):
-        super().__init__(return_sequences)
+        super(ReturnStateTemplate, self).__init__(return_sequences)
         self.return_state = True
 
     def post_process_mdrnn_result(self, result):
@@ -104,7 +104,7 @@ class GoBackwardsAndReturnStateTemplate(ReturnStateTemplate):
                          return_state=self.return_state, go_backwards=True)
 
     def post_process_mdrnn_result(self, result):
-        output, state = super().post_process_mdrnn_result(result)
+        output, state = super(GoBackwardsAndReturnStateTemplate, self).post_process_mdrnn_result(result)
 
         if self.return_sequences:
             output = reverse_second_axis(output)
