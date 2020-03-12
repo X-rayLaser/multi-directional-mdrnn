@@ -5,31 +5,41 @@ from mdrnn._util.directions import Direction
 from mdrnn._util.grids import TensorGrid, PositionOutOfBoundsError
 
 
-class MDRNN(tf.keras.layers.Layer):
+class RnnValidator:
     MAX_INPUT_DIM = 10**10
     MAX_UNITS = MAX_INPUT_DIM
     MAX_NDIMS = 10**3
 
+    @staticmethod
+    def validate_rnn_params(units, input_dim, ndims):
+        if (input_dim <= 0 or input_dim >= RnnValidator.MAX_INPUT_DIM
+                or units <= 0 or units >= RnnValidator.MAX_UNITS
+                or ndims <= 0 or ndims >= RnnValidator.MAX_NDIMS):
+            raise InvalidParamsError()
+
+
+def validate_direction(direction, ndims):
+    if not isinstance(direction, Direction):
+        raise InvalidParamsError()
+
+    if direction.dimensions != ndims:
+        raise InvalidParamsError(direction.dimensions)
+
+
+class BaseMDRNN(tf.keras.layers.Layer):
     def __init__(self, units, input_shape, kernel_initializer=None,
                  recurrent_initializer=None, bias_initializer=None, activation='tanh',
                  return_sequences=False, return_state=False, direction=None, **kwargs):
         if input_shape:
             kwargs.update(dict(input_shape=input_shape))
-        super(MDRNN, self).__init__(**kwargs)
-
+        super(BaseMDRNN, self).__init__(**kwargs)
         input_dim = input_shape[-1]
         ndims = len(input_shape[:-1])
 
-        if (input_dim <= 0 or input_dim >= self.MAX_INPUT_DIM
-                or units <= 0 or units >= self.MAX_UNITS
-                or ndims <= 0 or ndims >= self.MAX_NDIMS):
-            raise InvalidParamsError()
+        RnnValidator.validate_rnn_params(units, input_dim, ndims)
 
-        if direction is None:
-            args = [1] * ndims
-            direction = Direction(*args)
-
-        self._validate_direction(direction, ndims)
+        direction = direction or self._get_default_direction(ndims)
+        validate_direction(direction, ndims)
 
         self._input_shape = input_shape
         self.ndims = ndims
@@ -38,31 +48,60 @@ class MDRNN(tf.keras.layers.Layer):
         self.return_sequences = return_sequences
         self.return_state = return_state
         self.direction = direction
-        self.activation = tf.keras.activations.get(activation)
         self._kernel_initializer = kernel_initializer
         self._recurrent_initializer = recurrent_initializer
         self._bias_initializer = bias_initializer
+        self.activation = tf.keras.activations.get(activation)
 
-        default_initializer = tf.keras.initializers.he_normal()
+        self._initialize_initializers()
 
-        if kernel_initializer is None:
-            kernel_initializer = default_initializer
+    def _get_default_direction(self, ndims):
+        args = [1] * ndims
+        return Direction(*args)
 
-        if recurrent_initializer is None:
-            recurrent_initializer = default_initializer
+    def _initialize_initializers(self):
+        default_initializer = self._get_default_initializer()
 
-        if bias_initializer is None:
-            bias_initializer = default_initializer
+        self._kernel_initializer = self._kernel_initializer or default_initializer
+        self._recurrent_initializer = self._recurrent_initializer or default_initializer
+        self._bias_initializer = self._bias_initializer or default_initializer
 
-        self.wax = tf.Variable(kernel_initializer((input_dim, units), dtype=tf.float32))
+    def _get_default_initializer(self):
+        return tf.keras.initializers.he_normal()
+
+    def _validate_input(self, inp):
+        expected_rank = 1 + self.ndims + 1
+        if (len(inp.shape) != expected_rank or 0 in inp.shape
+                or inp.shape[-1] != self.input_dim):
+            raise InputRankMismatchError(inp.shape)
+
+
+class MDRNN(BaseMDRNN):
+    def __init__(self, units, input_shape, kernel_initializer=None,
+                 recurrent_initializer=None, bias_initializer=None, activation='tanh',
+                 return_sequences=False, return_state=False, direction=None, **kwargs):
+        super(MDRNN, self).__init__(units, input_shape,
+                                    kernel_initializer=kernel_initializer,
+                                    recurrent_initializer=recurrent_initializer,
+                                    bias_initializer=bias_initializer,
+                                    activation=activation,
+                                    return_sequences=return_sequences,
+                                    return_state=return_state,
+                                    direction=direction,
+                                    **kwargs)
+
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        self.wax = tf.Variable(self._kernel_initializer((self.input_dim, self.units), dtype=tf.float32))
         self.recurrent_kernels = []
 
         for _ in range(self.ndims):
             self.recurrent_kernels.append(
-                tf.Variable(recurrent_initializer((units, units), dtype=tf.float32))
+                tf.Variable(self._recurrent_initializer((self.units, self.units), dtype=tf.float32))
             )
 
-        self.ba = tf.Variable(bias_initializer((1, units), dtype=tf.float32))
+        self.ba = tf.Variable(self._bias_initializer((1, self.units), dtype=tf.float32))
 
     def spawn(self, direction):
         return MDRNN(units=self.units, input_shape=self._input_shape,
@@ -73,13 +112,6 @@ class MDRNN(tf.keras.layers.Layer):
                      return_sequences=self.return_sequences,
                      return_state=self.return_state,
                      direction=direction)
-
-    def _validate_direction(self, direction, ndims):
-        if not isinstance(direction, Direction):
-            raise InvalidParamsError()
-
-        if direction.dimensions != ndims:
-            raise InvalidParamsError(direction.dimensions)
 
     def call(self, inp, initial_state=None, **kwargs):
         self._validate_input(inp)
@@ -94,12 +126,6 @@ class MDRNN(tf.keras.layers.Layer):
         outputs = self._make_graph(inp, initial_state)
 
         return self._prepare_result(outputs)
-
-    def _validate_input(self, inp):
-        expected_rank = 1 + self.ndims + 1
-        if (len(inp.shape) != expected_rank or 0 in inp.shape
-                or inp.shape[-1] != self.input_dim):
-            raise InputRankMismatchError(inp.shape)
 
     def _prepare_initial_state(self, initial_state):
         if initial_state is None:

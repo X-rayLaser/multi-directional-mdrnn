@@ -4,56 +4,43 @@ import tensorflow as tf
 from mdrnn._layers.simple_mdrnn import InputRankMismatchError, InvalidParamsError
 from mdrnn._util.directions import Direction
 from mdrnn._util.grids import TensorGrid
+from mdrnn._layers.simple_mdrnn import RnnValidator, BaseMDRNN
 
 
-class MDGRU(Layer):
-    MAX_INPUT_DIM = 10**10
-    MAX_UNITS = MAX_INPUT_DIM
-    MAX_NDIMS = 10**3
-
+class MDGRU(BaseMDRNN):
     def __init__(self, units, input_shape, kernel_initializer=None,
                  recurrent_initializer=None, bias_initializer=None, activation='tanh',
                  recurrent_activation='sigmoid',
                  return_sequences=False, return_state=False, direction=None, **kwargs):
-        super(MDGRU, self).__init__(**kwargs)
+        super(MDGRU, self).__init__(units, input_shape,
+                                    kernel_initializer=kernel_initializer,
+                                    recurrent_initializer=recurrent_initializer,
+                                    bias_initializer=bias_initializer,
+                                    activation=activation,
+                                    return_sequences=return_sequences,
+                                    return_state=return_state,
+                                    direction=direction,
+                                    **kwargs)
 
-        input_dim = input_shape[-1]
-        ndims = len(input_shape[:-1])
+        self.recurrent_activation = tf.keras.activations.get(recurrent_activation)
 
-        if (input_dim <= 0 or input_dim >= self.MAX_INPUT_DIM
-                or units <= 0 or units >= self.MAX_UNITS
-                or ndims <= 0 or ndims >= self.MAX_NDIMS):
-            raise InvalidParamsError()
+        self._initialize_weights()
 
-        if direction is None:
-            args = [1] * ndims
-            direction = Direction(*args)
-
-        self._input_shape = input_shape
-        self.input_dim = input_dim
-        self.ndims = ndims
-        self.units = units
-        self.return_sequences = return_sequences
-        self.return_state = return_state
-        self.direction = direction
-        self._kernel_initializer = kernel_initializer
-        self._recurrent_initializer = recurrent_initializer
-        self._bias_initializer = bias_initializer
-
-        input_size = input_shape[-1]
+    def _initialize_weights(self):
+        input_size = self._input_shape[-1]
         self.kernel = self.add_weight(
             shape=(input_size, self.units * 3),
             name='kernel',
-            initializer=kernel_initializer)
+            initializer=self._kernel_initializer)
 
         self.recurrent_kernel = self.add_weight(
             shape=(self.units, self.units * 3),
             name='recurrent_kernel',
-            initializer=recurrent_initializer)
+            initializer=self._recurrent_initializer)
 
-        self.bias = self.add_weight(shape=(units * 3, ),
+        self.bias = self.add_weight(shape=(self.units * 3, ),
                                     name='bias',
-                                    initializer=bias_initializer)
+                                    initializer=self._bias_initializer)
 
         self.Wz = self.kernel[:, :self.units]
         self.Wr = self.kernel[:, self.units: self.units * 2]
@@ -66,9 +53,6 @@ class MDGRU(Layer):
         self.Bz = self.bias[:self.units]
         self.Br = self.bias[self.units: self.units * 2]
         self.Bh = self.bias[self.units * 2:]
-
-        self.activation = tf.keras.activations.get(activation)
-        self.recurrent_activation = tf.keras.activations.get(recurrent_activation)
 
     def spawn(self, direction):
         return MDGRU(units=self.units, input_shape=self._input_shape,
@@ -119,9 +103,3 @@ class MDGRU(Layer):
         if self.return_state:
             return [returned_outputs] + [last_state]
         return returned_outputs
-
-    def _validate_input(self, inp):
-        expected_rank = 1 + self.ndims + 1
-        if (len(inp.shape) != expected_rank or 0 in inp.shape
-                or inp.shape[-1] != self.input_dim):
-            raise InputRankMismatchError(inp.shape)
