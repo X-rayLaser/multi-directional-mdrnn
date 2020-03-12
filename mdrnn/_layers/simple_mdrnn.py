@@ -75,6 +75,30 @@ class BaseMDRNN(tf.keras.layers.Layer):
                 or inp.shape[-1] != self.input_dim):
             raise InputRankMismatchError(inp.shape)
 
+    def _get_batch(self, tensor, position):
+        i = position[0]
+        t = tensor[:, i]
+
+        for index in position[1:]:
+            t = t[:, index]
+        return t
+
+    def _calculate_grid_shape(self, inp):
+        return inp.shape[1:-1]
+
+    def _prepare_result(self, outputs):
+        final_position = self.direction.get_final_position()
+        last_state = self._get_batch(outputs, final_position)
+
+        if self.return_sequences:
+            returned_outputs = outputs
+        else:
+            returned_outputs = last_state
+
+        if self.return_state:
+            return [returned_outputs] + [last_state]
+        return returned_outputs
+
 
 class MDRNN(BaseMDRNN):
     def __init__(self, units, input_shape, kernel_initializer=None,
@@ -176,17 +200,6 @@ class MDRNN(BaseMDRNN):
 
         return outputs.to_tensor()
 
-    def _calculate_grid_shape(self, inp):
-        return inp.shape[1:-1]
-
-    def _get_batch(self, tensor, position):
-        i = position[0]
-        t = tensor[:, i]
-
-        for index in position[1:]:
-            t = t[:, index]
-        return t
-
     def _compute_recurrent_weighted_sum(self, outputs, position):
         previous_positions = self.direction.get_previous_step_positions(position)
 
@@ -222,19 +235,6 @@ class MDRNN(BaseMDRNN):
                 pass
 
         return valid_positions
-
-    def _prepare_result(self, outputs):
-        final_position = self.direction.get_final_position()
-        last_state = self._get_batch(outputs, final_position)
-
-        if self.return_sequences:
-            returned_outputs = outputs
-        else:
-            returned_outputs = last_state
-
-        if self.return_state:
-            return [returned_outputs] + [last_state]
-        return returned_outputs
 
 
 class InvalidParamsError(Exception):

@@ -67,14 +67,22 @@ class MDGRU(BaseMDRNN):
 
     def call(self, inputs, initial_state=None, **kwargs):
         self._validate_input(inputs)
+        outputs = self._make_graph(inputs, initial_state)
+        return self._prepare_result(outputs)
 
-        a = tf.zeros((1, self.units))
+    def _make_graph(self, inputs, initial_state):
+        if initial_state is None:
+            a = tf.zeros((1, self.units))
+        else:
+            a = initial_state
+
         X = tf.constant(inputs, dtype=tf.float32)
 
         Tx = X.shape[1]
         tensor_shape = (inputs.shape[0], self.input_dim)
 
-        output_grid = TensorGrid(grid_shape=(Tx, ), tensor_shape=tensor_shape)
+        grid_shape = self._calculate_grid_shape(X)
+        output_grid = TensorGrid(grid_shape=grid_shape, tensor_shape=tensor_shape)
 
         for position in self.direction.iterate_over_positions([Tx]):
             t = position[0]
@@ -91,15 +99,4 @@ class MDGRU(BaseMDRNN):
             a = z * a + (1 - z) * h
             output_grid.put_item(position, a)
 
-        outputs = output_grid.to_tensor()
-
-        last_state = a
-
-        if self.return_sequences:
-            returned_outputs = outputs
-        else:
-            returned_outputs = last_state
-
-        if self.return_state:
-            return [returned_outputs] + [last_state]
-        return returned_outputs
+        return output_grid.to_tensor()
