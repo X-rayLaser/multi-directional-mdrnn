@@ -28,7 +28,7 @@ def validate_direction(direction, ndims):
 
 class BaseMDRNN(tf.keras.layers.Layer):
     def __init__(self, units, input_shape, kernel_initializer=None,
-                 recurrent_initializer=None, bias_initializer=None, activation='tanh',
+                 recurrent_initializer=None, bias_initializer=None,
                  return_sequences=False, return_state=False, direction=None, **kwargs):
         if input_shape:
             kwargs.update(dict(input_shape=input_shape))
@@ -51,7 +51,6 @@ class BaseMDRNN(tf.keras.layers.Layer):
         self._kernel_initializer = kernel_initializer
         self._recurrent_initializer = recurrent_initializer
         self._bias_initializer = bias_initializer
-        self.activation = tf.keras.activations.get(activation)
 
         self._initialize_initializers()
 
@@ -208,11 +207,12 @@ class MDRNN(BaseMDRNN):
                                     kernel_initializer=kernel_initializer,
                                     recurrent_initializer=recurrent_initializer,
                                     bias_initializer=bias_initializer,
-                                    activation=activation,
                                     return_sequences=return_sequences,
                                     return_state=return_state,
                                     direction=direction,
                                     **kwargs)
+
+        self.activation = tf.keras.activations.get(activation)
 
         self._cell = MDRNNCell(
             self.units, self.input_dim, self.ndims,

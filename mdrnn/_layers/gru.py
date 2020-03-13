@@ -12,12 +12,12 @@ class MDGRU(BaseMDRNN):
                                     kernel_initializer=kernel_initializer,
                                     recurrent_initializer=recurrent_initializer,
                                     bias_initializer=bias_initializer,
-                                    activation=activation,
                                     return_sequences=return_sequences,
                                     return_state=return_state,
                                     direction=direction,
                                     **kwargs)
 
+        self.activation = tf.keras.activations.get(activation)
         self.recurrent_activation = tf.keras.activations.get(recurrent_activation)
 
         self._initialize_weights()
