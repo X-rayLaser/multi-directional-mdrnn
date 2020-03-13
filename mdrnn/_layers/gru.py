@@ -22,6 +22,9 @@ class MDGRU(BaseMDRNN):
 
         self._initialize_weights()
 
+    def _process_input(self, x_batch, prev_activations, axes):
+        pass
+
     def _initialize_weights(self):
         input_size = self._input_shape[-1]
         self.kernel = self.add_weight(
@@ -70,7 +73,7 @@ class MDGRU(BaseMDRNN):
     def _make_graph(self, inputs, initial_state):
         a = initial_state
 
-        X = tf.constant(inputs, dtype=tf.float32)
+        X = inputs
 
         Tx = X.shape[1]
         tensor_shape = (inputs.shape[0], self.input_dim)

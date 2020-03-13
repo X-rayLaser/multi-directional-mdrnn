@@ -55,6 +55,9 @@ class BaseMDRNN(tf.keras.layers.Layer):
 
         self._initialize_initializers()
 
+    def _process_input(self, x_batch, prev_activations, axes):
+        raise NotImplementedError
+
     def _get_default_direction(self, ndims):
         args = [1] * ndims
         return Direction(*args)
@@ -68,6 +71,13 @@ class BaseMDRNN(tf.keras.layers.Layer):
 
     def _get_default_initializer(self):
         return tf.keras.initializers.he_normal()
+
+    def call(self, inp, initial_state=None, **kwargs):
+        self._validate_input(inp)
+        inp = self._prepare_inputs(inp)
+        initial_state = self._prepare_initial_state(initial_state)
+        outputs = self._make_graph(inp, initial_state)
+        return self._prepare_result(outputs)
 
     def _validate_input(self, inp):
         expected_rank = 1 + self.ndims + 1
@@ -83,6 +93,34 @@ class BaseMDRNN(tf.keras.layers.Layer):
             inputs = tf.cast(inputs, dtype=tf.float32)
         return inputs
 
+    def _make_graph(self, inp, initial_state):
+        grid_shape = self._calculate_grid_shape(inp)
+
+        tensor_shape = (inp.shape[0], self.input_dim)
+
+        outputs = TensorGrid(grid_shape=grid_shape, tensor_shape=tensor_shape)
+
+        positions = self.direction.iterate_over_positions(grid_shape)
+
+        first_position = positions[0]
+
+        for position in positions:
+            x_batch = self._get_batch(inp, position)
+
+            if position == first_position:
+                axis_to_activation = [v for v in initial_state]
+                axes = list(range(self.ndims))
+            else:
+                axis_to_activation, axes = self._get_relevant_activations_with_axes(outputs, position)
+
+            a = self._process_input(x_batch, axis_to_activation, axes)
+            outputs.put_item(position, a)
+
+        return outputs.to_tensor()
+
+    def _calculate_grid_shape(self, inp):
+        return inp.shape[1:-1]
+
     def _get_batch(self, tensor, position):
         i = position[0]
         t = tensor[:, i]
@@ -91,8 +129,31 @@ class BaseMDRNN(tf.keras.layers.Layer):
             t = t[:, index]
         return t
 
-    def _calculate_grid_shape(self, inp):
-        return inp.shape[1:-1]
+    def _get_relevant_activations_with_axes(self, outputs, position):
+        previous_positions = self.direction.get_previous_step_positions(position)
+
+        axes_with_positions = self._discard_out_of_bound_positions(
+            outputs, previous_positions
+        )
+
+        previous_activations = {}
+        for axis, prev_position in axes_with_positions:
+            previous_activations[axis] = outputs.get_item(prev_position)
+
+        valid_axes = [axis for axis, _ in axes_with_positions]
+        return previous_activations, valid_axes
+
+    def _discard_out_of_bound_positions(self, output_grid, positions):
+        valid_positions = []
+
+        for axis, prev_position in enumerate(positions):
+            try:
+                output_grid.get_item(prev_position)
+                valid_positions.append((axis, prev_position))
+            except PositionOutOfBoundsError:
+                pass
+
+        return valid_positions
 
     def _prepare_result(self, outputs):
         final_position = self.direction.get_final_position()
@@ -107,12 +168,36 @@ class BaseMDRNN(tf.keras.layers.Layer):
             return [returned_outputs] + [last_state]
         return returned_outputs
 
-    def call(self, inp, initial_state=None, **kwargs):
-        self._validate_input(inp)
-        inp = self._prepare_inputs(inp)
-        initial_state = self._prepare_initial_state(initial_state)
-        outputs = self._make_graph(inp, initial_state)
-        return self._prepare_result(outputs)
+
+class MDRNNCell:
+    def __init__(self, kernel_size, input_dim, ndims, kernel_initializer,
+                 recurrent_initializer, bias_initializer, activation):
+
+        self.wax = tf.Variable(kernel_initializer((input_dim, kernel_size), dtype=tf.float32))
+        self.ba = tf.Variable(bias_initializer((1, kernel_size), dtype=tf.float32))
+
+        self.recurrent_kernels = []
+        self._kernel_size = kernel_size
+        self._activation = activation
+
+        for _ in range(ndims):
+            self.recurrent_kernels.append(
+                tf.Variable(recurrent_initializer((self._kernel_size, self._kernel_size), dtype=tf.float32))
+            )
+
+    def process(self, x_batch, prev_states, axes):
+        z_recurrent = self._compute_weighted_sum_of_activations(prev_states, axes)
+        z = tf.add(z_recurrent, tf.matmul(x_batch, self.wax))
+        z = tf.add(z, self.ba)
+        return self._activation(z)
+
+    def _compute_weighted_sum_of_activations(self, axis_to_activation, axes):
+        z_recurrent = tf.zeros((1, self._kernel_size), dtype=tf.float32)
+        for axis in axes:
+            waa = self.recurrent_kernels[axis]
+            a = axis_to_activation[axis]
+            z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
+        return z_recurrent
 
 
 class MDRNN(BaseMDRNN):
@@ -129,18 +214,13 @@ class MDRNN(BaseMDRNN):
                                     direction=direction,
                                     **kwargs)
 
-        self._initialize_weights()
-
-    def _initialize_weights(self):
-        self.wax = tf.Variable(self._kernel_initializer((self.input_dim, self.units), dtype=tf.float32))
-        self.recurrent_kernels = []
-
-        for _ in range(self.ndims):
-            self.recurrent_kernels.append(
-                tf.Variable(self._recurrent_initializer((self.units, self.units), dtype=tf.float32))
-            )
-
-        self.ba = tf.Variable(self._bias_initializer((1, self.units), dtype=tf.float32))
+        self._cell = MDRNNCell(
+            self.units, self.input_dim, self.ndims,
+            kernel_initializer=self._kernel_initializer,
+            recurrent_initializer=self._recurrent_initializer,
+            bias_initializer=self._bias_initializer,
+            activation=self.activation
+        )
 
     def spawn(self, direction):
         return MDRNN(units=self.units, input_shape=self._input_shape,
@@ -170,72 +250,8 @@ class MDRNN(BaseMDRNN):
 
         return a0
 
-    def _make_graph(self, inp, initial_state):
-        grid_shape = self._calculate_grid_shape(inp)
-
-        tensor_shape = (inp.shape[0], self.input_dim)
-
-        outputs = TensorGrid(grid_shape=grid_shape, tensor_shape=tensor_shape)
-
-        positions = self.direction.iterate_over_positions(grid_shape)
-
-        first_position = positions[0]
-
-        for position in positions:
-            batch = self._get_batch(inp, position)
-
-            if position == first_position:
-                axis_to_activation = [v for v in initial_state]
-                axes = list(range(self.ndims))
-                z_recurrent = self._compute_weighted_sum_of_activations(
-                    axis_to_activation, axes
-                )
-            else:
-                z_recurrent = self._compute_recurrent_weighted_sum(outputs, position)
-
-            z = tf.add(z_recurrent, tf.matmul(batch, self.wax))
-            z = tf.add(z, self.ba)
-            a = self.activation(z)
-
-            outputs.put_item(position, a)
-
-        return outputs.to_tensor()
-
-    def _compute_recurrent_weighted_sum(self, outputs, position):
-        previous_positions = self.direction.get_previous_step_positions(position)
-
-        axes_with_positions = self._discard_out_of_bound_positions(
-            outputs, previous_positions
-        )
-
-        previous_activations = {}
-        for axis, prev_position in axes_with_positions:
-            previous_activations[axis] = outputs.get_item(prev_position)
-
-        valid_axes = [axis for axis, _ in axes_with_positions]
-
-        return self._compute_weighted_sum_of_activations(previous_activations,
-                                                         valid_axes)
-
-    def _compute_weighted_sum_of_activations(self, axis_to_activation, axes):
-        z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
-        for axis in axes:
-            waa = self.recurrent_kernels[axis]
-            a = axis_to_activation[axis]
-            z_recurrent = tf.add(tf.matmul(a, waa), z_recurrent)
-        return z_recurrent
-
-    def _discard_out_of_bound_positions(self, output_grid, positions):
-        valid_positions = []
-
-        for axis, prev_position in enumerate(positions):
-            try:
-                output_grid.get_item(prev_position)
-                valid_positions.append((axis, prev_position))
-            except PositionOutOfBoundsError:
-                pass
-
-        return valid_positions
+    def _process_input(self, x_batch, prev_activations, axes):
+        return self._cell.process(x_batch, prev_activations, axes)
 
 
 class InvalidParamsError(Exception):
