@@ -75,6 +75,14 @@ class BaseMDRNN(tf.keras.layers.Layer):
                 or inp.shape[-1] != self.input_dim):
             raise InputRankMismatchError(inp.shape)
 
+    def _prepare_inputs(self, inputs):
+        if not isinstance(inputs, tf.Tensor):
+            inputs = tf.constant(inputs, dtype=tf.float32)
+
+        if inputs.dtype != tf.float32:
+            inputs = tf.cast(inputs, dtype=tf.float32)
+        return inputs
+
     def _get_batch(self, tensor, position):
         i = position[0]
         t = tensor[:, i]
@@ -98,6 +106,13 @@ class BaseMDRNN(tf.keras.layers.Layer):
         if self.return_state:
             return [returned_outputs] + [last_state]
         return returned_outputs
+
+    def call(self, inp, initial_state=None, **kwargs):
+        self._validate_input(inp)
+        inp = self._prepare_inputs(inp)
+        initial_state = self._prepare_initial_state(initial_state)
+        outputs = self._make_graph(inp, initial_state)
+        return self._prepare_result(outputs)
 
 
 class MDRNN(BaseMDRNN):
@@ -136,20 +151,6 @@ class MDRNN(BaseMDRNN):
                      return_sequences=self.return_sequences,
                      return_state=self.return_state,
                      direction=direction)
-
-    def call(self, inp, initial_state=None, **kwargs):
-        self._validate_input(inp)
-
-        if not isinstance(inp, tf.Tensor):
-            inp = tf.constant(inp, dtype=tf.float32)
-
-        if inp.dtype != tf.float32:
-            inp = tf.cast(inp, dtype=tf.float32)
-
-        initial_state = self._prepare_initial_state(initial_state)
-        outputs = self._make_graph(inp, initial_state)
-
-        return self._prepare_result(outputs)
 
     def _prepare_initial_state(self, initial_state):
         if initial_state is None:

@@ -1,10 +1,6 @@
-from tensorflow.keras.layers import Layer
 import tensorflow as tf
-
-from mdrnn._layers.simple_mdrnn import InputRankMismatchError, InvalidParamsError
-from mdrnn._util.directions import Direction
 from mdrnn._util.grids import TensorGrid
-from mdrnn._layers.simple_mdrnn import RnnValidator, BaseMDRNN
+from mdrnn._layers.simple_mdrnn import BaseMDRNN
 
 
 class MDGRU(BaseMDRNN):
@@ -65,16 +61,14 @@ class MDGRU(BaseMDRNN):
                      return_state=self.return_state,
                      direction=direction)
 
-    def call(self, inputs, initial_state=None, **kwargs):
-        self._validate_input(inputs)
-        outputs = self._make_graph(inputs, initial_state)
-        return self._prepare_result(outputs)
+    def _prepare_initial_state(self, initial_state):
+        if initial_state is None:
+            return tf.zeros((1, self.units))
+        else:
+            return initial_state
 
     def _make_graph(self, inputs, initial_state):
-        if initial_state is None:
-            a = tf.zeros((1, self.units))
-        else:
-            a = initial_state
+        a = initial_state
 
         X = tf.constant(inputs, dtype=tf.float32)
 

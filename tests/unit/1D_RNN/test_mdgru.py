@@ -195,6 +195,29 @@ class UnidirectionalInitialStateTests(TestCase):
         test_template.run(self.x, self.initial_state)
 
 
+class InputTypeTests(TestCase):
+    def assert_correct_behavior(self, x):
+        test_template = SimpleTestTemplate(return_sequences=False)
+        test_template.run(x)
+
+        rnn, keras_rnn = make_rnns(return_sequences=False, return_state=False)
+        rnn.call(x)
+
+    def test_can_use_numpy_array_as_input(self):
+        x = np.random.rand(3, 4, 5)
+        self.assert_correct_behavior(x)
+
+    def test_can_use_float32_tensor_as_input(self):
+        x = np.random.rand(3, 4, 5)
+        x = tf.constant(x, tf.float32)
+        self.assert_correct_behavior(x)
+
+    def test_can_use_float64_tensor_as_input(self):
+        x = np.random.rand(3, 4, 5)
+        x = tf.constant(x, tf.float64)
+        self.assert_correct_behavior(x)
+
+
 class BidirectionalMDGRUTests(TestCase):
     def make_rnns(self, return_sequences, return_state, go_backwards=False):
         rnn, keras_rnn = make_rnns(return_sequences, return_state, go_backwards)
@@ -240,3 +263,5 @@ class BidirectionalMDGRUTests(TestCase):
     def test_with_both_flags_return_sequences_and_return_state(self):
         x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
         self.assert_output_tuples_equal(x, return_sequences=True, return_state=True)
+
+
