@@ -167,6 +167,24 @@ class BaseMDRNN(tf.keras.layers.Layer):
             return [returned_outputs] + [last_state]
         return returned_outputs
 
+    def _prepare_initial_state(self, initial_state):
+        if initial_state is None:
+            if self.ndims == 1:
+                initial_state = np.zeros((1, self.units), dtype=np.float)
+            else:
+                initial_state = []
+                for i in range(self.ndims):
+                    initial_state.append(np.zeros((1, self.units), dtype=np.float))
+
+        if self.ndims == 1:
+            initial_state = [initial_state]
+
+        a0 = []
+        for i in range(self.ndims):
+            a0.append(tf.constant(initial_state[i], dtype=tf.float32))
+
+        return a0
+
 
 class MDRNNCell:
     def __init__(self, kernel_size, input_dim, ndims, kernel_initializer,
@@ -231,24 +249,6 @@ class MDRNN(BaseMDRNN):
                      return_sequences=self.return_sequences,
                      return_state=self.return_state,
                      direction=direction)
-
-    def _prepare_initial_state(self, initial_state):
-        if initial_state is None:
-            if self.ndims == 1:
-                initial_state = np.zeros((1, self.units), dtype=np.float)
-            else:
-                initial_state = []
-                for i in range(self.ndims):
-                    initial_state.append(np.zeros((1, self.units), dtype=np.float))
-
-        if self.ndims == 1:
-            initial_state = [initial_state]
-
-        a0 = []
-        for i in range(self.ndims):
-            a0.append(tf.constant(initial_state[i], dtype=tf.float32))
-
-        return a0
 
     def _process_input(self, x_batch, prev_activations, axes):
         return self._cell.process(x_batch, prev_activations, axes)

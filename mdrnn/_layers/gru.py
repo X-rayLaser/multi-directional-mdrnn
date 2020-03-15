@@ -23,7 +23,19 @@ class MDGRU(BaseMDRNN):
         self._initialize_weights()
 
     def _process_input(self, x_batch, prev_activations, axes):
-        pass
+        # todo: implement this method using custom Cell class
+        a = prev_activations[axes[0]]
+        term = tf.matmul(x_batch, self.Wz) + self.Bz
+        z = self.recurrent_activation(tf.matmul(a, self.Uz) + term)
+
+        term = tf.matmul(x_batch, self.Wr) + self.Br
+        r = self.recurrent_activation(tf.matmul(a, self.Ur) + term)
+
+        term = tf.matmul(x_batch, self.Wh) + self.Bh
+        h = self.activation(tf.matmul(r * a, self.Uh) + term)
+
+        a = z * a + (1 - z) * h
+        return a
 
     def _initialize_weights(self):
         input_size = self._input_shape[-1]
@@ -63,37 +75,3 @@ class MDGRU(BaseMDRNN):
                      return_sequences=self.return_sequences,
                      return_state=self.return_state,
                      direction=direction)
-
-    def _prepare_initial_state(self, initial_state):
-        if initial_state is None:
-            return tf.zeros((1, self.units))
-        else:
-            return initial_state
-
-    def _make_graph(self, inputs, initial_state):
-        a = initial_state
-
-        X = inputs
-
-        Tx = X.shape[1]
-        tensor_shape = (inputs.shape[0], self.input_dim)
-
-        grid_shape = self._calculate_grid_shape(X)
-        output_grid = TensorGrid(grid_shape=grid_shape, tensor_shape=tensor_shape)
-
-        for position in self.direction.iterate_over_positions([Tx]):
-            t = position[0]
-            x = X[:, t, :]
-            term = tf.matmul(x, self.Wz) + self.Bz
-            z = self.recurrent_activation(tf.matmul(a, self.Uz) + term)
-
-            term = tf.matmul(x, self.Wr) + self.Br
-            r = self.recurrent_activation(tf.matmul(a, self.Ur) + term)
-
-            term = tf.matmul(x, self.Wh) + self.Bh
-            h = self.activation(tf.matmul(r * a, self.Uh) + term)
-
-            a = z * a + (1 - z) * h
-            output_grid.put_item(position, a)
-
-        return output_grid.to_tensor()

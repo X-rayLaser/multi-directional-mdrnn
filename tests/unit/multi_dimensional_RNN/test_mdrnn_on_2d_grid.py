@@ -65,7 +65,7 @@ class Degenerate2DInputToMDGRUTests(Degenerate2DInputToMDRNNTests):
         return MDGRU(**kwargs)
 
     def create_keras_rnn(self, **kwargs):
-        return tf.keras.layers.GRU(**kwargs)
+        return tf.keras.layers.GRU(implementation=1, reset_after=False, **kwargs)
 
 
 class GridInputTests(TestCase):
