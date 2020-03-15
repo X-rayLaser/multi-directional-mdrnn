@@ -68,14 +68,18 @@ class Degenerate2DInputToMDGRUTests(Degenerate2DInputToMDRNNTests):
         return tf.keras.layers.GRU(implementation=1, reset_after=False, **kwargs)
 
 
-class GridInputTests(TestCase):
-    def test_shape(self):
-        rnn2d = MDRNN(units=5, input_shape=(None, None, 1),
-                      kernel_initializer=initializers.Constant(1),
-                      recurrent_initializer=initializers.Constant(1),
-                      bias_initializer=initializers.Constant(-1),
-                      return_sequences=True,
-                      activation='tanh')
+class OutputShapeGiven2DTests(TestCase):
+    def get_rnn_class(self):
+        return MDRNN
+
+    def test(self):
+        RnnClass = self.get_rnn_class()
+        rnn2d = RnnClass(units=5, input_shape=(None, None, 1),
+                         kernel_initializer=initializers.Constant(1),
+                         recurrent_initializer=initializers.Constant(1),
+                         bias_initializer=initializers.Constant(-1),
+                         return_sequences=True,
+                         activation='tanh')
 
         x = np.arange(6).reshape((1, 2, 3, 1))
 
@@ -83,44 +87,75 @@ class GridInputTests(TestCase):
 
         self.assertEqual((1, 2, 3, 5), res.shape)
 
-    def test_result(self):
-        rnn2d = MDRNN(units=1, input_shape=(None, None, 1),
-                      kernel_initializer=initializers.Identity(),
-                      recurrent_initializer=initializers.Identity(1),
-                      bias_initializer=initializers.Constant(-1),
-                      return_sequences=True,
-                      activation=None)
 
-        x = np.arange(6).reshape((1, 2, 3, 1))
+class MDGRUOutputShapeGiven2DTests(OutputShapeGiven2DTests):
+    def get_rnn_class(self):
+        return MDGRU
 
-        actual = rnn2d.call(x)
 
-        desired = np.array([
+class OutputShapeGiven6DInputTests(TestCase):
+    def get_rnn_class(self):
+        return MDRNN
+
+    def test_shape_of_output_after_processing_6d_input(self):
+        units = 7
+        last_dim_size = 12
+        RnnClass = self.get_rnn_class()
+        rnn = RnnClass(units=units, input_shape=(None, None, None, None, None, None, last_dim_size),
+                       return_sequences=True,
+                       activation='tanh')
+
+        x = tf.zeros(shape=(2, 3, 1, 2, 2, 1, 5, last_dim_size))
+
+        result = rnn.call(x)
+        self.assertEqual((2, 3, 1, 2, 2, 1, 5, units), result.shape)
+
+
+class MDGRUOutputShapeGiven6DInputTests(OutputShapeGiven6DInputTests):
+    def get_rnn_class(self):
+        return MDGRU
+
+
+class ProcessingGridInputTests(TestCase):
+    def setUp(self):
+        RnnClass = self.get_mdrnn_class()
+        self.rnn2d = RnnClass(units=1, input_shape=(None, None, 1),
+                              kernel_initializer=initializers.Identity(),
+                              recurrent_initializer=initializers.Identity(1),
+                              bias_initializer=initializers.Constant(-1),
+                              return_sequences=True,
+                              activation=None)
+
+        self.x = np.arange(6).reshape((1, 2, 3, 1))
+        self.initial_state = [tf.ones(shape=(1, 1)), tf.ones(shape=(1, 1))]
+
+    def get_mdrnn_class(self):
+        return MDRNN
+
+    def get_expected_result(self):
+        return np.array([
             [-1, -1, 0],
             [1, 3, 7]
         ]).reshape((1, 2, 3, 1))
 
-        np.testing.assert_almost_equal(desired, actual.numpy(), 6)
-
-    def test_2drnn_output_when_providing_initial_state(self):
-        rnn2d = MDRNN(units=1, input_shape=(None, None, 1),
-                      kernel_initializer=initializers.Identity(),
-                      recurrent_initializer=initializers.Identity(1),
-                      bias_initializer=initializers.Constant(-1),
-                      return_sequences=True,
-                      activation=None)
-
-        x = np.arange(6).reshape((1, 2, 3, 1))
-
-        initial_state = [tf.ones(shape=(1, 1)), tf.ones(shape=(1, 1))]
-
-        actual = rnn2d.call(x, initial_state=initial_state)
-        desired = np.array([
+    def get_expected_result_for_processing_with_initial_state(self):
+        return np.array([
             [1, 1, 2],
             [3, 7, 13]
         ]).reshape((1, 2, 3, 1))
+
+    def test_result(self):
+        actual = self.rnn2d.call(self.x)
+        desired = self.get_expected_result()
         np.testing.assert_almost_equal(desired, actual.numpy(), 6)
 
+    def test_2drnn_output_when_providing_initial_state(self):
+        actual = self.rnn2d.call(self.x, initial_state=self.initial_state)
+        desired = self.get_expected_result_for_processing_with_initial_state()
+        np.testing.assert_almost_equal(desired, actual.numpy(), 6)
+
+
+class ThreeDimensionalInputTests(TestCase):
     def test_result_after_running_rnn_on_3d_input(self):
         rnn3d = MDRNN(units=1, input_shape=(None, None, None, 1),
                       kernel_initializer=initializers.Identity(),
@@ -145,15 +180,3 @@ class GridInputTests(TestCase):
 
         desired_state = desired[:, -1, -1, -1]
         np.testing.assert_almost_equal(desired_state, state.numpy(), 6)
-
-    def test_shape_of_output_of_6d_rnn(self):
-        units = 7
-        last_dim_size = 12
-        rnn = MDRNN(units=units, input_shape=(None, None, None, None, None, None, last_dim_size),
-                    return_sequences=True,
-                    activation='tanh')
-
-        x = tf.zeros(shape=(2, 3, 1, 2, 2, 1, 5, last_dim_size))
-
-        result = rnn.call(x)
-        self.assertEqual((2, 3, 1, 2, 2, 1, 5, units), result.shape)
