@@ -5,6 +5,7 @@ import tensorflow as tf
 from tensorflow_core.python.keras.api._v2.keras import initializers
 
 from mdrnn import MDRNN, MDGRU
+from mdrnn._layers.gru import LinearGate
 
 
 class Degenerate2DInputToMDRNNTests(TestCase):
@@ -180,3 +181,113 @@ class ThreeDimensionalInputTests(TestCase):
 
         desired_state = desired[:, -1, -1, -1]
         np.testing.assert_almost_equal(desired_state, state.numpy(), 6)
+
+
+class LinearGateExceptionTests(TestCase):
+    def setUp(self):
+        self.initializer = tf.keras.initializers.zeros()
+        self.x = tf.constant(np.random.rand(2, 4), dtype=tf.float64)
+
+    def create_gate(self, **kwargs):
+        return LinearGate(kernel_initializer=self.initializer,
+                          recurrent_initializer=self.initializer,
+                          bias_initializer=self.initializer,
+                          **kwargs)
+
+    def test_cannot_use_negative_number_of_dimensions(self):
+        self.assertRaises(Exception, lambda: self.create_gate(num_dimensions=-1))
+
+    def test_cannot_use_too_large_number_of_dimensions(self):
+        self.assertRaises(Exception,
+                          lambda: self.create_gate(num_dimensions=10**3 + 1))
+
+    def test_prev_outputs_cannot_have_more_elements_than_number_of_dimensions(self):
+        gate = self.create_gate(units=8, input_size=4, num_dimensions=3)
+        self.assertRaises(Exception,
+                          lambda: gate.process(self.x, prev_outputs=[3, 2, 1, 3], axes=[0, 1, 2, 3]))
+
+    def test_number_of_axes_cannot_have_more_elements_than_number_of_dimensions(self):
+        gate = self.create_gate(units=8, input_size=4, num_dimensions=3)
+        self.assertRaises(Exception,
+                          lambda: gate.process(self.x, prev_outputs=[3, 2, 1], axes=[0, 1, 2, 3]))
+
+
+class LinearGateTests(TestCase):
+    def setUp(self):
+        self.kernel_initializer = tf.keras.initializers.he_normal(seed=1)
+        self.recurrent_initializer = tf.keras.initializers.he_normal(seed=2)
+        self.bias_initializer = tf.keras.initializers.he_normal(seed=3)
+
+        self.units = 8
+        self.input_size = 2
+
+        self.x = tf.constant(np.random.rand(2, self.input_size), dtype=tf.float64)
+        self.kernel = self.kernel_initializer((self.input_size, self.units), dtype=tf.float64)
+        self.bias = self.bias_initializer((self.units,), dtype=tf.float64)
+
+    def create_gate(self, num_dimensions):
+        return LinearGate(units=self.units,
+                          input_size=self.input_size,
+                          num_dimensions=num_dimensions,
+                          kernel_initializer=self.kernel_initializer,
+                          recurrent_initializer=self.recurrent_initializer,
+                          bias_initializer=self.bias_initializer)
+
+    def test_with_zero_dimensions(self):
+        gate = self.create_gate(num_dimensions=0)
+        expected = tf.matmul(self.x, self.kernel) + self.bias
+        actual = gate.process(self.x, prev_outputs=[], axes=[])
+        np.testing.assert_almost_equal(actual.numpy(), expected.numpy(), 6)
+
+    def test_with_one_dimension(self):
+        gate = self.create_gate(num_dimensions=1)
+
+        u = self.recurrent_initializer((self.units, self.units), dtype=tf.float64)
+        a = tf.constant(np.random.rand(2, self.units), dtype=tf.float64)
+
+        expected = tf.matmul(self.x, self.kernel) + tf.matmul(a, u) + self.bias
+        actual = gate.process(self.x, prev_outputs=[a], axes=[0])
+
+        np.testing.assert_almost_equal(actual.numpy(), expected.numpy(), 6)
+
+    def test_with_two_dimensions(self):
+        gate = self.create_gate(num_dimensions=2)
+
+        u = self.recurrent_initializer((self.units, self.units * 2), dtype=tf.float64)
+
+        u1 = u[:, :self.units]
+        u2 = u[:, self.units:]
+
+        a1 = tf.constant(np.random.rand(2, self.units), dtype=tf.float64)
+        a2 = tf.constant(np.random.rand(2, self.units), dtype=tf.float64)
+
+        expected = tf.matmul(self.x, self.kernel) + tf.matmul(a1, u1) + tf.matmul(a2, u2) + self.bias
+        actual = gate.process(self.x, prev_outputs=[a1, a2], axes=[0, 1])
+
+        np.testing.assert_almost_equal(actual.numpy(), expected.numpy(), 6)
+
+    def test_correct_recurrent_kernel_is_used(self):
+        gate = self.create_gate(num_dimensions=2)
+
+        u = self.recurrent_initializer((self.units, self.units * 2), dtype=tf.float64)
+
+        u1 = u[:, :self.units]
+        a1 = tf.constant(np.random.rand(2, self.units), dtype=tf.float64)
+
+        expected = tf.matmul(self.x, self.kernel) + tf.matmul(a1, u1) + self.bias
+        actual = gate.process(self.x, prev_outputs={0: a1}, axes=[0])
+        np.testing.assert_almost_equal(actual.numpy(), expected.numpy(), 6)
+
+        u2 = u[:, self.units:]
+        a2 = tf.constant(np.random.rand(2, self.units), dtype=tf.float64)
+
+        expected = tf.matmul(self.x, self.kernel) + tf.matmul(a2, u2) + self.bias
+        actual = gate.process(self.x, prev_outputs={1: a2}, axes=[1])
+        np.testing.assert_almost_equal(actual.numpy(), expected.numpy(), 6)
+
+
+# todo: Finish LinearGate implementation
+# todo: Write MDGRUCell in terms of LinearGate objects and test it
+# todo: Write shape tests for MultiDirectional(MDGRU(...))
+# todo: acceptance/integration tests using MDGRU on dummy data
+# todo: update Readme and make a new release

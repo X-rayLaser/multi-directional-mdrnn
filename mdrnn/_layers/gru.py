@@ -75,3 +75,43 @@ class MDGRU(BaseMDRNN):
                      return_sequences=self.return_sequences,
                      return_state=self.return_state,
                      direction=direction)
+
+
+class LinearGate:
+    MAX_NUM_DIMENSIONS = 1000
+
+    def __init__(self, units, input_size, num_dimensions, kernel_initializer,
+                 recurrent_initializer, bias_initializer):
+        if num_dimensions < 0 or num_dimensions > self.MAX_NUM_DIMENSIONS:
+            raise BadDimensionalityError()
+
+        self.num_dimensions = num_dimensions
+        self.kernel = tf.Variable(kernel_initializer((input_size, units), dtype=tf.float64))
+
+        self.aggregate_kernel = tf.Variable(recurrent_initializer((units, units * num_dimensions), dtype=tf.float64))
+
+        self.recurrent_kernels = []
+        for i in range(num_dimensions):
+            k = self.aggregate_kernel[:, i * units:(i + 1) * units]
+            self.recurrent_kernels.append(k)
+
+        self.bias = tf.Variable(bias_initializer((units,), dtype=tf.float64))
+
+    def process(self, x_batch, prev_outputs, axes):
+        if len(prev_outputs) > self.num_dimensions or len(axes) > self.num_dimensions:
+            raise Exception('# of elements in a list of previous outputs '
+                            'greater than number of input dimensions')
+
+        output = tf.matmul(x_batch, self.kernel)
+
+        recurrent_sum = tf.zeros_like(output)
+
+        for axis in axes:
+            a = prev_outputs[axis]
+            recurrent_sum += tf.matmul(a, self.recurrent_kernels[axis])
+
+        return output + recurrent_sum + self.bias
+
+
+class BadDimensionalityError(Exception):
+    pass
