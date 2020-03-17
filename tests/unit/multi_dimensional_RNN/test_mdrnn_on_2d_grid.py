@@ -286,7 +286,8 @@ class LinearGateTests(TestCase):
         np.testing.assert_almost_equal(actual.numpy(), expected.numpy(), 6)
 
 
-# todo: Finish LinearGate implementation
+# todo: initialize weights of each gate from inside MDGRUCell (otherwise, multiple gate weights will be the same initially!)
+# todo: create and test a function that helps to do the above
 # todo: Write MDGRUCell in terms of LinearGate objects and test it
 # todo: Write shape tests for MultiDirectional(MDGRU(...))
 # todo: acceptance/integration tests using MDGRU on dummy data

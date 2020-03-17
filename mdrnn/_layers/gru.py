@@ -77,6 +77,68 @@ class MDGRU(BaseMDRNN):
                      direction=direction)
 
 
+class MDGRUCell:
+    def __init__(self, units, input_size, num_dimensions, kernel_initializer_class,
+                 recurrent_initializer_class, bias_initializer_class,
+                 activation='tanh', recurrent_activation='sigmoid'):
+        self._update_gates = []
+        self._relevance_gates = []
+        self._num_dimensions = num_dimensions
+
+        for i in range(num_dimensions):
+            kernel_initializer = kernel_initializer_class(seed=i)
+            recurrent_initializer = recurrent_initializer_class(seed=i)
+            bias_initializer = bias_initializer_class(seed=i)
+            gate = LinearGate(units, input_size, num_dimensions,
+                              kernel_initializer,
+                              recurrent_initializer, bias_initializer)
+            self._update_gates.append(gate)
+
+            kernel_initializer = kernel_initializer_class(seed=i + num_dimensions)
+            recurrent_initializer = recurrent_initializer_class(seed=i + num_dimensions)
+            bias_initializer = bias_initializer_class(seed=i + num_dimensions)
+
+            gate = LinearGate(units, input_size, num_dimensions,
+                              kernel_initializer,
+                              recurrent_initializer, bias_initializer)
+            self._relevance_gates.append(gate)
+
+        kernel_initializer = kernel_initializer_class(seed=num_dimensions * 2)
+        recurrent_initializer = recurrent_initializer_class(seed=num_dimensions * 2)
+        bias_initializer = bias_initializer_class(seed=num_dimensions * 2)
+
+        self.state = LinearGate(units, input_size, num_dimensions, kernel_initializer,
+                                recurrent_initializer, bias_initializer)
+
+        self._activation = tf.keras.activations.get(activation)
+        self._recurrent_activation = tf.keras.activations.get(recurrent_activation)
+
+    def process(self, x_batch, prev_states, axes):
+        updates = self._gated_computation(x_batch, prev_states, axes,
+                                          self._update_gates)
+        relevancy = self._gated_computation(x_batch, prev_states, axes,
+                                            self._relevance_gates)
+
+        gated_states = [relevancy[d] * prev_states[d] for d in axes]
+
+        z = self._activation(self.state.process(x_batch, gated_states, axes))
+
+        output = tf.zeros_like(updates[0])
+        for d in axes:
+            output += updates[d] * z + (1 - updates[d]) * prev_states[d]
+
+        return output
+
+    def _gated_computation(self, x_batch, prev_states, axes, gates):
+        res = []
+
+        for d in range(self._num_dimensions):
+            z = gates[d].process(x_batch, prev_states, axes)
+            output = self._recurrent_activation(z)
+            res.append(output)
+        return res
+
+
 class LinearGate:
     MAX_NUM_DIMENSIONS = 1000
 
