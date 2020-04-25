@@ -57,6 +57,23 @@ class BaseMDRNN(tf.keras.layers.Layer):
     def _process_input(self, x_batch, prev_activations, axes):
         raise NotImplementedError
 
+    def _create_grid(self, grid_shape, tensor_shape):
+        return TensorGrid(grid_shape=grid_shape, tensor_shape=tensor_shape)
+
+    def _prepare_result(self, outputs_grid):
+        outputs = outputs_grid.to_tensor()
+        final_position = self.direction.get_final_position()
+        last_state = self._get_batch(outputs, final_position)
+
+        if self.return_sequences:
+            returned_outputs = outputs
+        else:
+            returned_outputs = last_state
+
+        if self.return_state:
+            return [returned_outputs] + [last_state]
+        return returned_outputs
+
     def _get_default_direction(self, ndims):
         args = [1] * ndims
         return Direction(*args)
@@ -97,7 +114,7 @@ class BaseMDRNN(tf.keras.layers.Layer):
 
         tensor_shape = (inp.shape[0], self.input_dim)
 
-        outputs = TensorGrid(grid_shape=grid_shape, tensor_shape=tensor_shape)
+        outputs = self._create_grid(grid_shape=grid_shape, tensor_shape=tensor_shape)
 
         positions = self.direction.iterate_over_positions(grid_shape)
 
@@ -115,7 +132,7 @@ class BaseMDRNN(tf.keras.layers.Layer):
             a = self._process_input(x_batch, axis_to_activation, axes)
             outputs.put_item(position, a)
 
-        return outputs.to_tensor()
+        return outputs
 
     def _calculate_grid_shape(self, inp):
         return inp.shape[1:-1]
@@ -153,19 +170,6 @@ class BaseMDRNN(tf.keras.layers.Layer):
                 pass
 
         return valid_positions
-
-    def _prepare_result(self, outputs):
-        final_position = self.direction.get_final_position()
-        last_state = self._get_batch(outputs, final_position)
-
-        if self.return_sequences:
-            returned_outputs = outputs
-        else:
-            returned_outputs = last_state
-
-        if self.return_state:
-            return [returned_outputs] + [last_state]
-        return returned_outputs
 
     def _prepare_initial_state(self, initial_state):
         if initial_state is None:

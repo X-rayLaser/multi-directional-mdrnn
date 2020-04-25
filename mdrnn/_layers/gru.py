@@ -76,6 +76,47 @@ class MDGRU(BaseMDRNN):
                      return_state=self.return_state,
                      direction=direction)
 
+    def _prepare_result(self, outputs_grid):
+        outputs = outputs_grid.to_tensor()
+        final_position = self.direction.get_final_position()
+        last_state = self._get_batch(outputs, final_position)
+
+        if self.return_sequences:
+            returned_outputs = outputs
+        else:
+            returned_outputs = last_state
+
+        if self.return_state:
+            return [returned_outputs] + [last_state]
+        return returned_outputs
+
+
+class GRUKernelInitializer:
+    def __init__(self, initializer, num_kernels):
+        pass
+
+    def get_kernel(self, i):
+        pass
+
+
+class GRUBiasInitializer:
+    def __init__(self, initializer, num_biases):
+        pass
+
+    def get_bias(self, i):
+        pass
+
+
+class GRURecurrentKernelInitializer:
+    def __init__(self, initializer, num_md_kernels, num_dimensions):
+        pass
+
+    def get_md_kernel(self, i):
+        pass
+
+    def get_1d_kernel(self):
+        pass
+
 
 class MDGRUCell:
     def __init__(self, units, input_size, num_dimensions, kernel_initializer_class,
@@ -84,6 +125,11 @@ class MDGRUCell:
         self._update_gates = []
         self._relevance_gates = []
         self._num_dimensions = num_dimensions
+
+        num_gate_kernels = 2 * num_dimensions
+        num_state_kernels = 1
+        num_kernels = num_gate_kernels + num_state_kernels
+        kernel_initializer = GRUKernelInitializer(kernel_initializer_class, num_kernels, input_size, units)
 
         for i in range(num_dimensions):
             kernel_initializer = kernel_initializer_class(seed=i)
@@ -147,17 +193,27 @@ class LinearGate:
         if num_dimensions < 0 or num_dimensions > self.MAX_NUM_DIMENSIONS:
             raise BadDimensionalityError()
 
+        self.units = units
         self.num_dimensions = num_dimensions
         self.kernel = tf.Variable(kernel_initializer((input_size, units), dtype=tf.float64))
 
         self.aggregate_kernel = tf.Variable(recurrent_initializer((units, units * num_dimensions), dtype=tf.float64))
-
         self.recurrent_kernels = []
-        for i in range(num_dimensions):
-            k = self.aggregate_kernel[:, i * units:(i + 1) * units]
-            self.recurrent_kernels.append(k)
+        self.set_recurrent_kernel(self.aggregate_kernel)
 
         self.bias = tf.Variable(bias_initializer((units,), dtype=tf.float64))
+
+    def set_kernel(self, kernel):
+        self.kernel = kernel
+
+    def set_recurrent_kernel(self, aggregate_kernel):
+        self.recurrent_kernels = []
+        for i in range(self.num_dimensions):
+            k = aggregate_kernel[:, i * self.units:(i + 1) * self.units]
+            self.recurrent_kernels.append(k)
+
+    def set_bias(self, bias):
+        self.bias = bias
 
     def process(self, x_batch, prev_outputs, axes):
         if len(prev_outputs) > self.num_dimensions or len(axes) > self.num_dimensions:

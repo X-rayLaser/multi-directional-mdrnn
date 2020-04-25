@@ -263,5 +263,3 @@ class BidirectionalMDGRUTests(TestCase):
     def test_with_both_flags_return_sequences_and_return_state(self):
         x = tf.constant(np.random.rand(3, 4, 5), dtype=tf.float32)
         self.assert_output_tuples_equal(x, return_sequences=True, return_state=True)
-
-

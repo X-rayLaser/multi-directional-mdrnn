@@ -4,10 +4,19 @@ import numpy as np
 import tensorflow as tf
 
 
-class MultiDimensionalGrid(object):
+class BaseGrid(object):
     def __init__(self, grid_shape):
         self._shape = grid_shape
-        self._grid = np.zeros(grid_shape).tolist()
+
+    @property
+    def grid_shape(self):
+        return self._shape
+
+    def put_item(self, position, item):
+        raise NotImplementedError
+
+    def get_item(self, position):
+        raise NotImplementedError
 
     def get_positions(self):
         iterators = []
@@ -16,6 +25,12 @@ class MultiDimensionalGrid(object):
 
         for position in itertools.product(*iterators):
             yield position
+
+
+class MultiDimensionalGrid(BaseGrid):
+    def __init__(self, grid_shape):
+        super().__init__(grid_shape)
+        self._grid = np.zeros(grid_shape).tolist()
 
     def set_grid(self, grid):
         self._grid = list(grid)
@@ -33,7 +48,7 @@ class MultiDimensionalGrid(object):
         row = self._get_inner_most_list(position)
         return row[position[-1]]
 
-    def get_sub_list(self, position):
+    def _get_sub_list(self, position):
         self._validate_position_dimensions(position)
 
         row = self._get_inner_most_list(position)
@@ -67,10 +82,6 @@ class TensorGrid(MultiDimensionalGrid):
 
         self._tensor_shape = tensor_shape
 
-    @property
-    def grid_shape(self):
-        return self._shape
-
     def reduce_rank(self):
         if len(self.grid_shape) == 1:
             tensor = tf.stack(self._grid, axis=1)
@@ -97,7 +108,7 @@ class TensorGrid(MultiDimensionalGrid):
         return self.grid_shape[:-1]
 
     def _fold_sub_list(self, position):
-        inner_list = self.get_sub_list(position)
+        inner_list = self._get_sub_list(position)
         return tf.stack(inner_list, axis=1)
 
     def to_tensor(self):
@@ -120,6 +131,28 @@ class NullGrid(MultiDimensionalGrid):
 
     def get_item(self, position):
         return self._tensor
+
+
+class LSTMCellGrid(BaseGrid):
+    def __init__(self, grid_shape, tensor_shape):
+        super().__init__(grid_shape)
+        self._cells = TensorGrid(grid_shape, tensor_shape)
+        self._activations = TensorGrid(grid_shape, tensor_shape)
+
+    def put_item(self, position, item):
+        self._cells.put_item(position, item)
+        self._activations.put_item(position, item)
+
+    def get_item(self, position):
+        a = self._activations.get_item(position)
+        c = self._cells.get_item(position)
+        return a, c
+
+    def get_cells_tensor(self):
+        return self._cells.to_tensor()
+
+    def get_activations_tensor(self):
+        return self._activations.to_tensor()
 
 
 class PositionOutOfBoundsError(Exception):
