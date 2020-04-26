@@ -2,7 +2,7 @@ from unittest.case import TestCase
 
 import numpy as np
 
-from mdrnn import MDRNN
+from mdrnn import MDRNN, MDLSTM
 
 
 class MDRNNOutputShapeTests(TestCase):
@@ -64,3 +64,62 @@ class MDRNNOutputShapeTests(TestCase):
         expected_state_shape = (2, 3)
         self.assertEqual(expected_sequence_shape, sequences.shape)
         self.assertEqual(expected_state_shape, state.shape)
+
+
+class MDLSTMOutputShapeTests(TestCase):
+    def setUp(self):
+        self.x = np.zeros((2, 4, 1))
+        self.expected_sequence_shape = (2, 4, 3)
+        self.expected_state_shape = (2, 3)
+
+    def create_default_mdrnn(self, **kwargs):
+        return MDLSTM(units=3, input_shape=(None, 1), **kwargs)
+
+    def test_feeding_1_dimensional_rnn_returns_sequences(self):
+        mdrnn = self.create_default_mdrnn(return_sequences=True)
+        output = mdrnn.call(self.x)
+        self.assertEqual(self.expected_sequence_shape, output.shape)
+
+    def test_feeding_1_dimensional_rnn_returns_last_state(self):
+        mdrnn = self.create_default_mdrnn()
+        self.assertEqual(self.expected_state_shape, mdrnn.call(self.x).shape)
+
+        mdrnn = self.create_default_mdrnn(return_sequences=False)
+        self.assertEqual(self.expected_state_shape, mdrnn.call(self.x).shape)
+
+    def test_feeding_1_dimensional_rnn_returns_sequences_and_last_state(self):
+        mdrnn = self.create_default_mdrnn(return_sequences=True, return_state=True)
+        res = mdrnn.call(self.x)
+        self.assertEqual(3, len(res))
+        sequences, a, c = res
+
+        self.assertEqual(self.expected_sequence_shape, sequences.shape)
+        self.assertEqual(self.expected_state_shape, a.shape)
+        self.assertEqual(self.expected_state_shape, c.shape)
+
+    def test_feeding_1_dimensional_rnn_returns_last_state_in_2_identical_tensors(self):
+        mdrnn = self.create_default_mdrnn(return_sequences=False, return_state=True)
+        res = mdrnn.call(self.x)
+        self.assertEqual(3, len(res))
+        outputs, a, c = res
+        self.assertEqual(self.expected_state_shape, outputs.shape)
+        self.assertTrue(np.all(outputs == a))
+
+    def test_feeding_5_dimensional_rnn_returns_sequences_and_last_state(self):
+        rnn = MDLSTM(units=3, input_shape=(None, None, None, None, None, 1),
+                     return_sequences=True, return_state=True)
+
+        shape = (2, 2, 3, 1, 2, 6, 1)
+        x = np.arange(2*2*3*1*2*6).reshape(shape)
+        res = rnn(x)
+        self.assertEqual(3, len(res))
+        sequences, a, c = res
+
+        expected_sequence_shape = (2, 2, 3, 1, 2, 6, 3)
+        expected_state_shape = (2, 3)
+        self.assertEqual(expected_sequence_shape, sequences.shape)
+        self.assertEqual(expected_state_shape, a.shape)
+        self.assertEqual(expected_state_shape, c.shape)
+
+
+# todo: remove duplication among test case classes

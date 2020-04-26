@@ -55,13 +55,26 @@ class MDLSTM(BaseMDRNN):
         c0 = super()._prepare_initial_state(initial_state)
 
         return list(zip(a0, c0))
-        return a0, c0
 
     def _process_input(self, x_batch, prev_activations, axes):
         return self._cell.process(x_batch, prev_activations, axes)
 
     def _prepare_result(self, outputs_grid):
-        pass
+        c = outputs_grid.get_cells_tensor()
+        a = outputs_grid.get_activations_tensor()
+
+        final_position = self.direction.get_final_position()
+        last_state_a = self._get_batch(a, final_position)
+        last_state_c = self._get_batch(c, final_position)
+
+        if self.return_sequences:
+            returned_outputs = a
+        else:
+            returned_outputs = last_state_a
+
+        if self.return_state:
+            return [returned_outputs] + [last_state_a] + [last_state_c]
+        return returned_outputs
 
 
 class MDLSTMCell:
@@ -162,12 +175,15 @@ class InputGate(ComputationGraph):
 
     def _compute_extra_term(self, prev_states, axes, **kwargs):
         axis_to_cell = {}
+        axis_to_kernel = {}
+
         for axis in axes:
             b, s = prev_states[axis]
             axis_to_cell[axis] = s
+            axis_to_kernel[axis] = self.shared_kernel
 
         return self._compute_hadamard_product_sum(
-            axis_to_cell, self.shared_kernel, axes
+            axis_to_cell, axis_to_kernel, axes
         )
 
 

@@ -3,7 +3,7 @@ from unittest.case import TestCase
 import numpy as np
 
 from mdrnn import MDRNN, InputRankMismatchError
-from mdrnn import MDGRU
+from mdrnn import MDGRU, MDLSTM
 
 
 class MDRNNInputValidationTests(TestCase):
@@ -52,5 +52,4 @@ class MDGRUInputValidationTests(MDRNNInputValidationTests):
 
 class MDLSTMInputValidationTests(MDRNNInputValidationTests):
     def make_rnn(self, **kwargs):
-        from mdrnn import MDLSTM
         return MDLSTM(**kwargs)
