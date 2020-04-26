@@ -48,3 +48,9 @@ class MDRNNInputValidationTests(TestCase):
 class MDGRUInputValidationTests(MDRNNInputValidationTests):
     def make_rnn(self, **kwargs):
         return MDGRU(**kwargs)
+
+
+class MDLSTMInputValidationTests(MDRNNInputValidationTests):
+    def make_rnn(self, **kwargs):
+        from mdrnn import MDLSTM
+        return MDLSTM(**kwargs)

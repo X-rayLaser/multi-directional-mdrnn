@@ -1,26 +1,64 @@
 import tensorflow as tf
-import numpy as np
 from .simple_mdrnn import BaseMDRNN
+from .._util.grids import LSTMCellGrid
 
 
 class MDLSTM(BaseMDRNN):
+    def __init__(self, units, input_shape, kernel_initializer=None,
+                 recurrent_initializer=None, shared_weight_initializer=None,
+                 gate_activation='sigmoid', cell_input_activation='tanh',
+                 cell_output_activation='tanh',
+                 return_sequences=False, return_state=False, direction=None,
+                 **kwargs):
+        super(MDLSTM, self).__init__(units, input_shape,
+                                     kernel_initializer=kernel_initializer,
+                                     recurrent_initializer=recurrent_initializer,
+                                     return_sequences=return_sequences,
+                                     return_state=return_state,
+                                     direction=direction,
+                                     **kwargs)
+
+        default_initializer = self._get_default_initializer()
+        self._shared_weight_initializer = shared_weight_initializer or default_initializer
+
+        self._gate_activation = tf.keras.activations.get(gate_activation)
+        self._cell_input_activation = tf.keras.activations.get(cell_input_activation)
+        self._cell_output_activation = tf.keras.activations.get(cell_output_activation)
+
+        self._cell = MDLSTMCell(
+            self.units, self.input_dim, self.ndims,
+            kernel_initializer=self._kernel_initializer,
+            recurrent_initializer=self._recurrent_initializer,
+            shared_weight_initializer=self._shared_weight_initializer,
+            gate_activation=self._gate_activation,
+            cell_input_activation=self._cell_input_activation,
+            cell_output_activation=self._cell_output_activation
+        )
+
     def spawn(self, direction):
         return MDLSTM(units=self.units, input_shape=self._input_shape,
                       kernel_initializer=self._kernel_initializer,
                       recurrent_initializer=self._recurrent_initializer,
-                      bias_initializer=self._bias_initializer,
-                      activation=self.activation,
+                      shared_weight_initializer=self._shared_weight_initializer,
+                      gate_activation=self._gate_activation,
+                      cell_input_activation=self._cell_input_activation,
+                      cell_output_activation=self._cell_output_activation,
                       return_sequences=self.return_sequences,
                       return_state=self.return_state,
                       direction=direction)
 
+    def _create_grid(self, grid_shape, tensor_shape):
+        return LSTMCellGrid(grid_shape, tensor_shape)
+
     def _prepare_initial_state(self, initial_state):
         a0 = super()._prepare_initial_state(initial_state)
         c0 = super()._prepare_initial_state(initial_state)
+
+        return list(zip(a0, c0))
         return a0, c0
 
     def _process_input(self, x_batch, prev_activations, axes):
-        pass
+        return self._cell.process(x_batch, prev_activations, axes)
 
     def _prepare_result(self, outputs_grid):
         pass
@@ -28,22 +66,27 @@ class MDLSTM(BaseMDRNN):
 
 class MDLSTMCell:
     def __init__(self, kernel_size, input_dim, ndims, kernel_initializer,
-                 recurrent_initializer, shared_weight_initializer, activation):
+                 recurrent_initializer, shared_weight_initializer,
+                 gate_activation, cell_input_activation, cell_output_activation):
         self.input_gate = InputGate(kernel_size, input_dim, ndims,
-                               kernel_initializer, recurrent_initializer,
-                               shared_weight_initializer, activation)
+                                    kernel_initializer, recurrent_initializer,
+                                    shared_weight_initializer, gate_activation)
         self.forget_gates = []
         for axis in range(ndims):
             gate = ForgetGate(kernel_size, input_dim, ndims,
-                        kernel_initializer, recurrent_initializer,
-                        shared_weight_initializer, activation)
+                              kernel_initializer, recurrent_initializer,
+                              shared_weight_initializer, gate_activation)
             self.forget_gates.append(gate)
 
         self.output_gate = OutputGate(kernel_size, input_dim, ndims,
-                                kernel_initializer, recurrent_initializer,
-                                shared_weight_initializer, activation)
+                                      kernel_initializer, recurrent_initializer,
+                                      shared_weight_initializer, gate_activation)
 
-        self.cell_state = CellState(kernel_size, input_dim, ndims, kernel_initializer, recurrent_initializer, activation)
+        self.cell_state = CellState(kernel_size, input_dim, ndims,
+                                    kernel_initializer,
+                                    recurrent_initializer, cell_input_activation)
+
+        self.cell_output_activation = cell_output_activation
 
     def process(self, x_batch, prev_states, axes):
         b_input = self.input_gate.compute(x_batch, prev_states, axes)
@@ -58,21 +101,7 @@ class MDLSTMCell:
 
         b_output = self.output_gate.compute(x_batch, prev_states, axes, cells=state)
 
-        return tf.multiply(self.activation(state), b_output)
-
-        # todo: use 3 different activation functions
-
-    def _compute_input_gate(self, x_batch, b, s):
-        pass
-
-    def _compute_forget_gate(self, x_batch, b, s, d):
-        pass
-
-    def _compute_cell(self, x_batch, b, b_i, s, b_phi):
-        pass
-
-    def _compute_output(self, s, b):
-        pass
+        return tf.multiply(self.cell_output_activation(state), b_output)
 
 
 class ComputationGraph:
