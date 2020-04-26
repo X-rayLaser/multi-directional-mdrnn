@@ -29,19 +29,21 @@ class MDLSTM(BaseMDRNN):
 class MDLSTMCell:
     def __init__(self, kernel_size, input_dim, ndims, kernel_initializer,
                  recurrent_initializer, shared_weight_initializer, activation):
-        self.input_gate = Gate(kernel_size, input_dim, ndims,
+        self.input_gate = InputGate(kernel_size, input_dim, ndims,
                                kernel_initializer, recurrent_initializer,
                                shared_weight_initializer, activation)
         self.forget_gates = []
-        for _ in range(ndims):
-            gate = Gate(kernel_size, input_dim, ndims,
+        for axis in range(ndims):
+            gate = ForgetGate(kernel_size, input_dim, ndims,
                         kernel_initializer, recurrent_initializer,
                         shared_weight_initializer, activation)
             self.forget_gates.append(gate)
 
-        self.output_gate = Gate(kernel_size, input_dim, ndims,
+        self.output_gate = OutputGate(kernel_size, input_dim, ndims,
                                 kernel_initializer, recurrent_initializer,
                                 shared_weight_initializer, activation)
+
+        self.cell_state = CellState(kernel_size, input_dim, ndims, kernel_initializer, recurrent_initializer, activation)
 
     def process(self, x_batch, prev_states, axes):
         b_input = self.input_gate.compute(x_batch, prev_states, axes)
@@ -49,11 +51,16 @@ class MDLSTMCell:
         b_forget = [0] * len(self.forget_gates)
 
         for d in axes:
-            b_forget[d] = self.forget_gates[d].compute(x_batch, prev_states, axes)
+            b_forget[d] = self.forget_gates[d].compute(x_batch, prev_states, axes, axis=d)
 
-        b_output = self.output_gate.compute(x_batch, prev_states, axes)
+        state = self.cell_state.compute(x_batch, prev_states, axes,
+                                        b_input=b_input, b_forget=b_forget)
 
-        # todo: compute cell states and outputs
+        b_output = self.output_gate.compute(x_batch, prev_states, axes, cells=state)
+
+        return tf.multiply(self.activation(state), b_output)
+
+        # todo: use 3 different activation functions
 
     def _compute_input_gate(self, x_batch, b, s):
         pass
@@ -68,9 +75,45 @@ class MDLSTMCell:
         pass
 
 
-class Gate:
+class ComputationGraph:
+    def __init__(self, units, input_dim, ndims, kernel_initializer, recurrent_initializer):
+        self.units = units
+        self.kernel = tf.Variable(kernel_initializer((input_dim, units), dtype=tf.float32))
+
+        self.recurrent_kernels = []
+        for _ in range(ndims):
+            w = tf.Variable(recurrent_initializer((units, units), dtype=tf.float32))
+            self.recurrent_kernels.append(w)
+
+    def _compute_inner_products_sum(self, prev_states, axes):
+        z = tf.zeros((1, self.units), dtype=tf.float32)
+
+        for axis in axes:
+            b, s = prev_states[axis]
+            z = tf.add(tf.matmul(b, self.recurrent_kernels[axis]), z)
+
+        return z
+
+    def _multiply_by_kernel(self, x_batch):
+        return tf.matmul(x_batch, self.kernel)
+
+    def _compute_hadamard_product_sum(self, v, w, axes):
+        z = tf.zeros((1, self.units), dtype=tf.float32)
+
+        for axis in axes:
+            z = tf.add(tf.multiply(v[axis], w[axis]), z)
+
+        return z
+
+    def compute(self, x_batch, prev_states, axes, **kwargs):
+        product_sum = self._compute_inner_products_sum(prev_states, axes)
+        return tf.add(self._multiply_by_kernel(x_batch), product_sum)
+
+
+class InputGate(ComputationGraph):
     def __init__(self, units, input_dim, ndims, kernel_initializer,
                  recurrent_initializer, shared_weight_initializer, activation):
+        super().__init__(units, input_dim, ndims, kernel_initializer, recurrent_initializer)
         self.units = units
         self.kernel = tf.Variable(kernel_initializer((input_dim, units), dtype=tf.float32))
 
@@ -82,44 +125,56 @@ class Gate:
         self.shared_kernel = tf.Variable(shared_weight_initializer((units,), dtype=tf.float32))
         self.activation = activation
 
-    def compute(self, x_batch, prev_states, axes):
-        z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
-
-        for axis in axes:
-            b, s = prev_states[axis]
-            z_recurrent = tf.add(tf.matmul(b, self.recurrent_kernels[axis]), z_recurrent)
-            z_recurrent = tf.add(tf.matmul(s, self.shared_kernel), z_recurrent)
-
-        a = tf.add(tf.matmul(x_batch, self.kernel), z_recurrent)
+    def compute(self, x_batch, prev_states, axes, **kwargs):
+        a = super().compute(x_batch, prev_states, axes, **kwargs)
+        extra_term = self._compute_extra_term(prev_states, axes, **kwargs)
+        a = tf.add(a, extra_term)
         return self.activation(a)
 
+    def _compute_extra_term(self, prev_states, axes, **kwargs):
+        axis_to_cell = {}
+        for axis in axes:
+            b, s = prev_states[axis]
+            axis_to_cell[axis] = s
 
-class CellState:
+        return self._compute_hadamard_product_sum(
+            axis_to_cell, self.shared_kernel, axes
+        )
+
+
+class ForgetGate(InputGate):
+    def _compute_extra_term(self, prev_states, axes, **kwargs):
+        axis = kwargs['axis']
+        b, s = prev_states[axis]
+        return tf.multiply(s, self.shared_kernel)
+
+
+class OutputGate(InputGate):
+    def _compute_extra_term(self, prev_states, axes, **kwargs):
+        cells = kwargs['cells']
+        return tf.multiply(cells, self.shared_kernel)
+
+
+class CellState(ComputationGraph):
     def __init__(self, units, input_dim, ndims, kernel_initializer,
                  recurrent_initializer, activation):
-        self.units = units
-        self.kernel = tf.Variable(kernel_initializer((input_dim, units), dtype=tf.float32))
-
-        self.recurrent_kernels = []
-        for _ in range(ndims):
-            w = tf.Variable(recurrent_initializer((units, units), dtype=tf.float32))
-            self.recurrent_kernels.append(w)
+        super().__init__(units, input_dim, ndims, kernel_initializer, recurrent_initializer)
 
         self.activation = activation
 
-    def compute(self, x_batch, prev_states, axes, b_input, b_forget):
-        z_recurrent = tf.zeros((1, self.units), dtype=tf.float32)
+    def compute(self, x_batch, prev_states, axes, **kwargs):
+        b_input = kwargs['b_input']
+        b_forget = kwargs['b_forget']
 
+        a = super().compute(x_batch, prev_states, axes)
+
+        axis_to_forget_gate = {}
+        axis_to_cell = {}
         for axis in axes:
             b, s = prev_states[axis]
-            z_recurrent = tf.add(tf.matmul(b, self.recurrent_kernels[axis]), z_recurrent)
+            axis_to_forget_gate[axis] = b_forget[axis]
+            axis_to_cell[axis] = s
 
-        a = tf.add(tf.matmul(x_batch, self.kernel), z_recurrent)
+        hadamard_sum = self._compute_hadamard_product_sum(axis_to_cell, axis_to_forget_gate, axes)
 
-        tf.add(tf.multiply(b_input, self.activation(a)),
-               )
-        return self.activation(a)
-
-    def _sum_over_dimensions(self, cell_states, b_forget, axes):
-        # todo: implement this
-        pass
+        return tf.add(tf.multiply(b_input, self.activation(a)), hadamard_sum)
