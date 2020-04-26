@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_core.python.keras.api._v2.keras import initializers
 
-from mdrnn import MDRNN, MDGRU
+from mdrnn import MDRNN
 from mdrnn._layers.gru import LinearGate
 
 
@@ -61,14 +61,6 @@ class Degenerate2DInputToMDRNNTests(TestCase):
         self.assert_rnn_outputs_equal(x_1d, x_2d)
 
 
-class Degenerate2DInputToMDGRUTests(Degenerate2DInputToMDRNNTests):
-    def create_mdrnn(self, **kwargs):
-        return MDGRU(**kwargs)
-
-    def create_keras_rnn(self, **kwargs):
-        return tf.keras.layers.GRU(implementation=1, reset_after=False, **kwargs)
-
-
 class OutputShapeGiven2DTests(TestCase):
     def get_rnn_class(self):
         return MDRNN
@@ -89,11 +81,6 @@ class OutputShapeGiven2DTests(TestCase):
         self.assertEqual((1, 2, 3, 5), res.shape)
 
 
-class MDGRUOutputShapeGiven2DTests(OutputShapeGiven2DTests):
-    def get_rnn_class(self):
-        return MDGRU
-
-
 class OutputShapeGiven6DInputTests(TestCase):
     def get_rnn_class(self):
         return MDRNN
@@ -110,11 +97,6 @@ class OutputShapeGiven6DInputTests(TestCase):
 
         result = rnn.call(x)
         self.assertEqual((2, 3, 1, 2, 2, 1, 5, units), result.shape)
-
-
-class MDGRUOutputShapeGiven6DInputTests(OutputShapeGiven6DInputTests):
-    def get_rnn_class(self):
-        return MDGRU
 
 
 class ProcessingGridInputTests(TestCase):
@@ -284,11 +266,3 @@ class LinearGateTests(TestCase):
         expected = tf.matmul(self.x, self.kernel) + tf.matmul(a2, u2) + self.bias
         actual = gate.process(self.x, prev_outputs={1: a2}, axes=[1])
         np.testing.assert_almost_equal(actual.numpy(), expected.numpy(), 6)
-
-
-# todo: initialize weights of each gate from inside MDGRUCell (otherwise, multiple gate weights will be the same initially!)
-# todo: create and test a function that helps to do the above
-# todo: Write MDGRUCell in terms of LinearGate objects and test it
-# todo: Write shape tests for MultiDirectional(MDGRU(...))
-# todo: acceptance/integration tests using MDGRU on dummy data
-# todo: update Readme and make a new release

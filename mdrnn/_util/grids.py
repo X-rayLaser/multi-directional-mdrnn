@@ -29,7 +29,7 @@ class BaseGrid(object):
 
 class MultiDimensionalGrid(BaseGrid):
     def __init__(self, grid_shape):
-        super().__init__(grid_shape)
+        super(MultiDimensionalGrid, self).__init__(grid_shape)
         self._grid = np.zeros(grid_shape).tolist()
 
     def set_grid(self, grid):
@@ -135,7 +135,7 @@ class NullGrid(MultiDimensionalGrid):
 
 class LSTMCellGrid(BaseGrid):
     def __init__(self, grid_shape, tensor_shape):
-        super().__init__(grid_shape)
+        super(LSTMCellGrid, self).__init__(grid_shape)
         self._cells = TensorGrid(grid_shape, tensor_shape)
         self._activations = TensorGrid(grid_shape, tensor_shape)
 

@@ -2,8 +2,7 @@ from unittest.case import TestCase
 
 import numpy as np
 
-from mdrnn import MDRNN, InputRankMismatchError
-from mdrnn import MDGRU, MDLSTM
+from mdrnn import MDRNN, MDLSTM, InputRankMismatchError
 
 
 class MDRNNInputValidationTests(TestCase):
@@ -47,6 +46,7 @@ class MDRNNInputValidationTests(TestCase):
 
 class MDGRUInputValidationTests(MDRNNInputValidationTests):
     def make_rnn(self, **kwargs):
+        from mdrnn._layers.gru import MDGRU
         return MDGRU(**kwargs)
 
 

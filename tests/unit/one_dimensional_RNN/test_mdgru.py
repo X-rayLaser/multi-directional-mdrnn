@@ -2,7 +2,8 @@ from unittest import TestCase
 from tensorflow.keras import initializers
 import tensorflow as tf
 import numpy as np
-from mdrnn import MDGRU, MultiDirectional, Direction
+from mdrnn import MultiDirectional, Direction
+from mdrnn._layers.gru import MDGRU
 
 
 def make_rnns(return_sequences, return_state, go_backwards=False):

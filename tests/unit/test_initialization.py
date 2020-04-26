@@ -1,6 +1,5 @@
 from unittest.case import TestCase
-
-from mdrnn import MDRNN, MDGRU, InvalidParamsError
+from mdrnn import MDRNN, InvalidParamsError
 
 
 class MDRNNInitializationTests(TestCase):
@@ -29,6 +28,7 @@ class MDRNNInitializationTests(TestCase):
 
 class MDGRUInitializationTests(TestCase):
     def make_rnn(self, **kwargs):
+        from mdrnn._layers.gru import MDGRU
         return MDGRU(**kwargs)
 
     def assert_invalid_instances(self, *kwargs):
