@@ -105,3 +105,7 @@ model.fit(x, y, epochs=1)
 [1] A. Graves, S. Ferńandez, and J. Schmidhuber. Multidimensional recurrent neural networks.
 
 [2] A. Graves and J. Schmidhuber. Offline Handwriting Recognition with Multidimensional Recurrent Neural Networks.
+
+# Support
+
+If you find this repository useful, consider starring it by clicking at the ★ button. It would be much appreciated.
