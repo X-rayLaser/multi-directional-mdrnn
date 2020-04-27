@@ -15,12 +15,12 @@ and it wasn't extensively tested. Use it at your own risk
 
 Layers available now:
 - **MDRNN**: layer analogous to Keras SimpleRNN layer for processing multi-dimensional inputs
+- **MDLSTM**: analogous to Keras LSTM layer
 - **MultiDirectional**: layer-wrapper analogous to Keras Bidirectional for creating 
 multi-directional multi-dimensional RNN
 
 Layers currently under development (coming soon):
 - **MDGRU**: analogous to Keras GRU layer
-- **MDLSTM**: analogous to Keras LSTM layer
 
 Additional features:
 - easy to use with Keras
@@ -45,7 +45,7 @@ pip install -r requirements.txt
 
 Create a 2-dimensional RNN:
 ```
-from mdrnn import MDRNN, MultiDirectional
+from mdrnn import MDRNN, MDLSTM, MultiDirectional
 import numpy as np
 import tensorflow as tf
 rnn = MDRNN(units=16, input_shape=(5, 4, 10), activation='tanh', return_sequences=True)
@@ -73,6 +73,21 @@ y = np.zeros((10, 40,))
 model = tf.keras.Sequential()
 model.add(tf.keras.layers.Input(shape=(2, 3, 6)))
 model.add(MultiDirectional(MDRNN(10, input_shape=[2, 3, 6])))
+
+model.compile(loss='categorical_crossentropy', metrics=['acc'])
+model.summary()
+
+model.fit(x, y, epochs=1)
+```
+
+Similarly, create and train a multi-directional multi-dimensional LSTM (MDLSTM)
+```
+x = np.zeros((10, 2, 3, 6))
+y = np.zeros((10, 40,))
+
+model = tf.keras.Sequential()
+model.add(tf.keras.layers.Input(shape=(2, 3, 6)))
+model.add(MultiDirectional(MDLSTM(10, input_shape=[2, 3, 6])))
 
 model.compile(loss='categorical_crossentropy', metrics=['acc'])
 model.summary()
