@@ -32,7 +32,8 @@ class MDLSTM(BaseMDRNN):
             peephole_initializer=self._peephole_initializer,
             gate_activation=self._gate_activation,
             cell_input_activation=self._cell_input_activation,
-            cell_output_activation=self._cell_output_activation
+            cell_output_activation=self._cell_output_activation,
+            layer=self
         )
 
     def spawn(self, direction):
@@ -80,24 +81,24 @@ class MDLSTM(BaseMDRNN):
 class MDLSTMCell:
     def __init__(self, units, input_dim, ndims, kernel_initializer,
                  recurrent_initializer, peephole_initializer,
-                 gate_activation, cell_input_activation, cell_output_activation):
+                 gate_activation, cell_input_activation, cell_output_activation, layer):
         self.input_gate = InputGate(units, input_dim, ndims,
                                     kernel_initializer, recurrent_initializer,
-                                    peephole_initializer, gate_activation)
+                                    peephole_initializer, gate_activation, layer)
         self.forget_gates = []
         for axis in range(ndims):
             gate = ForgetGate(units, input_dim, ndims,
                               kernel_initializer, recurrent_initializer,
-                              peephole_initializer, gate_activation)
+                              peephole_initializer, gate_activation, layer)
             self.forget_gates.append(gate)
 
         self.output_gate = OutputGate(units, input_dim, ndims,
                                       kernel_initializer, recurrent_initializer,
-                                      peephole_initializer, gate_activation)
+                                      peephole_initializer, gate_activation, layer)
 
         self.cell_state = CellState(units, input_dim, ndims,
                                     kernel_initializer,
-                                    recurrent_initializer, cell_input_activation)
+                                    recurrent_initializer, cell_input_activation, layer)
 
         self.cell_output_activation = cell_output_activation
 
@@ -118,13 +119,18 @@ class MDLSTMCell:
 
 
 class ComputationGraph(object):
-    def __init__(self, units, input_dim, ndims, kernel_initializer, recurrent_initializer):
+    def __init__(self, units, input_dim, ndims, kernel_initializer, recurrent_initializer, layer):
         self.units = units
-        self.kernel = tf.Variable(kernel_initializer((input_dim, units), dtype=tf.float32))
+
+        self.kernel = layer.add_weight(shape=(input_dim, units),
+                                       initializer=kernel_initializer,
+                                       trainable=True)
 
         self.recurrent_kernels = []
         for _ in range(ndims):
-            w = tf.Variable(recurrent_initializer((units, units), dtype=tf.float32))
+            w = layer.add_weight(shape=(units, units),
+                                 initializer=recurrent_initializer,
+                                 trainable=True)
             self.recurrent_kernels.append(w)
 
     def _compute_inner_products_sum(self, prev_states, axes):
@@ -154,17 +160,12 @@ class ComputationGraph(object):
 
 class InputGate(ComputationGraph):
     def __init__(self, units, input_dim, ndims, kernel_initializer,
-                 recurrent_initializer, peephole_initializer, activation):
-        super(InputGate, self).__init__(units, input_dim, ndims, kernel_initializer, recurrent_initializer)
-        self.units = units
-        self.kernel = tf.Variable(kernel_initializer((input_dim, units), dtype=tf.float32))
+                 recurrent_initializer, peephole_initializer, activation, layer):
+        super(InputGate, self).__init__(units, input_dim, ndims, kernel_initializer, recurrent_initializer, layer)
 
-        self.recurrent_kernels = []
-        for _ in range(ndims):
-            w = tf.Variable(recurrent_initializer((units, units), dtype=tf.float32))
-            self.recurrent_kernels.append(w)
-
-        self.shared_kernel = tf.Variable(peephole_initializer((units,), dtype=tf.float32))
+        self.shared_kernel = layer.add_weight(shape=(units,),
+                                              initializer=peephole_initializer,
+                                              trainable=True)
         self.activation = activation
 
     def compute(self, x_batch, prev_states, axes, **kwargs):
@@ -202,8 +203,8 @@ class OutputGate(InputGate):
 
 class CellState(ComputationGraph):
     def __init__(self, units, input_dim, ndims, kernel_initializer,
-                 recurrent_initializer, activation):
-        super(CellState, self).__init__(units, input_dim, ndims, kernel_initializer, recurrent_initializer)
+                 recurrent_initializer, activation, layer):
+        super(CellState, self).__init__(units, input_dim, ndims, kernel_initializer, recurrent_initializer, layer)
 
         self.activation = activation
 
