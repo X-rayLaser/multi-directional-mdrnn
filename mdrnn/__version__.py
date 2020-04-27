@@ -1,6 +1,6 @@
 __name__ = 'mdrnn'
-__version__ = '0.2.2'
+__version__ = '0.3.0'
 __author__ = 'Evgenii Dolotov'
 __author_email__ = 'supernovaprotocol@gmail.com'
-__description__ = 'A library implementing multi-dimensional recurrent neural networks'
+__description__ = 'Custom Keras layers for implementing multi-dimensional recurrent neural networks (MDRNNs)'
 __url__ = 'https://github.com/X-rayLaser/multi-directional-mdrnn'
