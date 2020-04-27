@@ -31,9 +31,9 @@ class MultiDirectional(tf.keras.layers.Layer):
 
             for result in results_list:
                 activations = result[0]
-                states = result[1]
+                states = result[1:]
                 outputs_list.append(activations)
-                states_list.append(states)
+                states_list.extend(states)
 
             outputs_last_axis = num_output_dimensions - 1
             outputs = tf.concat(outputs_list, axis=outputs_last_axis)
