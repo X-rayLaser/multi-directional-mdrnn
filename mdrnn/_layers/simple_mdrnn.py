@@ -192,10 +192,15 @@ class BaseMDRNN(tf.keras.layers.Layer):
 
 class MDRNNCell:
     def __init__(self, kernel_size, input_dim, ndims, kernel_initializer,
-                 recurrent_initializer, bias_initializer, activation):
+                 recurrent_initializer, bias_initializer, activation, layer):
 
-        self.wax = tf.Variable(kernel_initializer((input_dim, kernel_size), dtype=tf.float32))
-        self.ba = tf.Variable(bias_initializer((1, kernel_size), dtype=tf.float32))
+        self.wax = layer.add_weight(shape=(input_dim, kernel_size),
+                                    initializer=kernel_initializer,
+                                    trainable=True)
+
+        self.ba = layer.add_weight(shape=(1, kernel_size),
+                                   initializer=bias_initializer,
+                                   trainable=True)
 
         self.recurrent_kernels = []
         self._kernel_size = kernel_size
@@ -203,7 +208,9 @@ class MDRNNCell:
 
         for _ in range(ndims):
             self.recurrent_kernels.append(
-                tf.Variable(recurrent_initializer((self._kernel_size, self._kernel_size), dtype=tf.float32))
+                layer.add_weight(shape=(self._kernel_size, self._kernel_size),
+                                 initializer=recurrent_initializer,
+                                 trainable=True)
             )
 
     def process(self, x_batch, prev_states, axes):
@@ -241,7 +248,8 @@ class MDRNN(BaseMDRNN):
             kernel_initializer=self._kernel_initializer,
             recurrent_initializer=self._recurrent_initializer,
             bias_initializer=self._bias_initializer,
-            activation=self.activation
+            activation=self.activation,
+            layer=self
         )
 
     def spawn(self, direction):
